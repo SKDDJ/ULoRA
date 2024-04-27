@@ -70,4 +70,4 @@ logger:
   wandb:
     tags: ${tags}
     group: "LoRA_Rec"
-    name: "tensor*10_lr${model.optimizer.lr}_batch_size${data.batch_size}_optimizer${model.optimizer._target_}_scheduler${model.scheduler._target_}_input_noise${model.net.input_noise_factor}_latent_noise_${model.net.latent_noise_factor}_fold${model.net.fold_rate}_kernel${model.net.kernel_size}_enc${model.net.enc_channel_list}_dec${model.net.dec_channel_list}_${seed}_fp${trainer.precision}"
+    name: "lr${model.optimizer.lr}_batch_size${data.batch_size}_optimizer${model.optimizer._target_}_scheduler${model.scheduler._target_}_input_noise${model.net.input_noise_factor}_latent_noise_${model.net.latent_noise_factor}_fold${model.net.fold_rate}_kernel${model.net.kernel_size}_enc${model.net.enc_channel_list}_dec${model.net.dec_channel_list}_${seed}_fp${trainer.precision}"
