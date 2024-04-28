@@ -50,7 +50,6 @@ def get_bias_params(model, print_shapes=False):
 def get_lora_state_dict(model):
     return {k: v for k, v in model.state_dict().items() if name_is_lora(k)}
 
-
 # ------------------- helper function for inferencing with multiple lora -------------------
 
 
