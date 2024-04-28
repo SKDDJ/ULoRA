@@ -23,7 +23,8 @@ def name_is_sara(name):
     return (
         len(name.split(".")) >= 4
         and (name.split(".")[-4]) == "parametrizations"
-        and name.split(".")[-1] in ["lora_A", "lora_B","vector"]
+        and name.split(".")[-1] in ["vector_z"]
+        # and name.split(".")[-1] in ["lora_A", "lora_B","vector_z"]
     )
 
 def name_is_bias(name):
@@ -32,6 +33,9 @@ def name_is_bias(name):
 
 def get_params_by_name(model, print_shapes=False, name_filter=None):
     for n, p in model.named_parameters():
+        # print("here we print name--")
+        # print(n)
+        # print("\n")
         if name_filter is None or name_filter(n):
             if print_shapes:
                 print(n, p.shape)
@@ -40,6 +44,7 @@ def get_params_by_name(model, print_shapes=False, name_filter=None):
 
 def get_sara_params(model, print_shapes=False):
     return get_params_by_name(model, print_shapes=print_shapes, name_filter=name_is_sara)
+    
 
 
 def get_bias_params(model, print_shapes=False):
