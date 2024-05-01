@@ -57,6 +57,11 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
 
+    # dm = GLUEDataModule("distilbert-base-uncased")
+    # dm.prepare_data()
+    # dm.setup("fit")
+    # next(iter(dm.train_dataloader()))
+    
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
 
@@ -130,3 +135,44 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
+
+# CoLA
+# seed_everything(42)
+
+# dm = GLUEDataModule(model_name_or_path="albert-base-v2", task_name="cola")
+# dm.setup("fit")
+# model = GLUETransformer(
+#     model_name_or_path="albert-base-v2",
+#     num_labels=dm.num_labels,
+#     eval_splits=dm.eval_splits,
+#     task_name=dm.task_name,
+# )
+
+# trainer = Trainer(
+#     max_epochs=1,
+#     accelerator="auto",
+#     devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
+# )
+# trainer.fit(model, datamodule=dm)
+
+# MRPC
+# seed_everything(42)
+
+# dm = GLUEDataModule(
+#     model_name_or_path="distilbert-base-cased",
+#     task_name="mrpc",
+# )
+# dm.setup("fit")
+# model = GLUETransformer(
+#     model_name_or_path="distilbert-base-cased",
+#     num_labels=dm.num_labels,
+#     eval_splits=dm.eval_splits,
+#     task_name=dm.task_name,
+# )
+
+# trainer = Trainer(
+#     max_epochs=3,
+#     accelerator="auto",
+#     devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
+# )
+# trainer.fit(model, datamodule=dm)
