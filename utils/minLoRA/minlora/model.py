@@ -45,6 +45,34 @@ class LoRAParametrization(nn.Module):
         return A * self.lora_dropout(self.lora_dropout_mask)
 
     def lora_forward(self, X):
+        
+        # print(X.shape)#torch.Size([768, 768])
+                        
+        # print(self.lora_A.device) # cpu
+        # print(self.lora_B.device) # cpu
+        # print(self.lora_A)
+        # self.lora_A = self.lora_A.to(X.device)
+        # self.lora_A.to(X.device)
+        # self.lora_B = self.lora_B.to(X.device)
+        # self.lora_B.to(X.device)
+        # print("self.lora_A",self.lora_A)
+        # self.lora_A.data.to(X.device)
+        # self.lora_B.data.to(X.device)
+        # move the self.lora_A to the X.device(which is cuda:0)
+        # 确保 lora_A 是一个 Parameter
+        # print('他妈的lora_A的type') # <class 'torch.nn.parameter.Parameter'>
+        # print(type(self.lora_A))
+        if not isinstance(self.lora_A, torch.nn.Parameter):
+            # print("他妈的 lora_A不是Parameter")
+            # 他妈的是Parameter = torch.nn.Parameter
+            self.lora_A = torch.nn.Parameter(self.lora_A)
+            
+        self.lora_A = torch.nn.Parameter(self.lora_A.to(device=X.device))
+        self.lora_B = torch.nn.Parameter(self.lora_B.to(device=X.device))
+
+        
+        # print("他妈的：self.lora_A.device",self.lora_A.device)
+        # print(self.lora_A.device) # cuda:0
         return X + torch.matmul(*self.swap((self.lora_B, self.dropout_fn(self.lora_A)))).view(X.shape) * self.scaling
 
     def forward(self, X):
@@ -96,7 +124,12 @@ def apply_lora(layer, register=True, merge=False, lora_config=default_lora_confi
     if register:#    这个条件判断是检查是否需要注册LoRA参数化。
         
         if type(layer) in lora_config:#    如果当前层的类型在`lora_config`中定义了相应的LoRA参数化设置，则继续执行。
-            
+            # print("他妈的"*20)
+            # print("layer",layer)
+            # print("device",layer.device) #cuda:0
+            # print("type(layer)",type(layer))
+            #layer Linear(in_features=768, out_features=768, bias=True)
+            # type(layer) <class 'torch.nn.modules.linear.Linear'>
             for attr_name, parametrization in lora_config[type(layer)].items():
                 #    遍历该层类型在`lora_config`中定义的所有LoRA参数化。
 

@@ -7,6 +7,8 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+utils/SaRA/SaRA.egg-info/
+
 .Python
 build/
 develop-eggs/
@@ -36,6 +38,9 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+wandb/
+roberta_glue_sara_reproduce/
+utils/LoRA/examples/
 
 # Unit test / coverage reports
 htmlcov/

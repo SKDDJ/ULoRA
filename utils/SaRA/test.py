@@ -5,8 +5,8 @@ from functools import partial
 from minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict
 _ = torch.set_grad_enabled(False)
 
-import sys
-sys.setrecursionlimit(1000000)  # 举例增加到1500，根据实际需要调整
+# import sys
+# sys.setrecursionlimit(1000000)  # 举例增加到1500，根据实际需要调整
 
 
 # a simple model
@@ -32,15 +32,15 @@ class MyModel(nn.Module):
 model = MyModel()
 
 x = torch.randn(1, 15)
-# print("The RANDOM x",x)
-# print("x",x)
-# y = model(x)
-# print("original y is",y) # original y is tensor([[ 0.1539, -0.4083, -0.3811]])
+print("The RANDOM x",x)
+
+y = model(x)
+print("original y is",y) # original y is tensor([[ 0.1539, -0.4083, -0.3811]])
 # Y0 = y
 
 sara_config = {
     nn.Linear: {
-        "weight": partial(SaRAParametrization.from_linear, rank=8),
+        "weight": partial(SaRAParametrization.from_linear, rank=15),
     },
 }
 
@@ -50,8 +50,8 @@ sara_config = {
 # import pysnooper
 # with pysnooper.snoop():
 add_sara(model, sara_config=sara_config)
-# y = model(x)
-# print("y after add lora",y) # y after add lora tensor([[ 0.2840, -0.3440, -0.4243]])
+y = model(x)
+print("y after add sara",y) # y after add lora tensor([[ 0.2840, -0.3440, -0.4243]])
 # print("just show the code runs here")
 # print(model)  # <MyModel with 2 layers>
 # for name, module in model._modules.items():
@@ -100,7 +100,7 @@ add_sara(model, sara_config=sara_config)
     # """
     
 
-aaa = get_sara_params(model, print_shapes=True)
+# aaa = get_sara_params(model, print_shapes=True)
 
 # for item in aaa:
     # print the trainable params
@@ -150,8 +150,8 @@ aaa = get_sara_params(model, print_shapes=True)
 disable_sara(model)
 # print(model)
 # y = model(x)
-# print("y after disable sara",y) #y after disable sara tensor([[ 0.1539, -0.4083, -0.3811]])
-# print("end"*20)
+print("y after disable sara",y) #y after disable sara tensor([[ 0.1539, -0.4083, -0.3811]])
+print("end"*20)
 exit()
 y = model(x)
 assert torch.allclose(y, Y0)

@@ -33,9 +33,6 @@ def name_is_bias(name):
 
 def get_params_by_name(model, print_shapes=False, name_filter=None):
     for n, p in model.named_parameters():
-        # print("here we print name--")
-        # print(n)
-        # print("\n")
         if name_filter is None or name_filter(n):
             if print_shapes:
                 print(n, p.shape)
