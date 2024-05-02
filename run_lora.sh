@@ -1,29 +1,30 @@
 #!/bin/bash
 
-export WANDB_MODE=offline
+# export WANDB_MODE=offline
 
 
 run(){
   task_name="cola"
   learning_rate=1e-2
-  num_train_epochs=800
+  num_train_epochs=80
   per_device_train_batch_size=64
-  rank=768
-  l_num=512
+  rank=8
+  l_num=12
   seed=0
-  lora_alpha="768"
-  target_modules="query value"
+  lora_alpha="16"
+  target_modules="query value key"
   mode="base"
   lora_dropout=0.
   lora_bias=none
   lora_task_type=SEQ_CLS
   wandb_project=test_sara
+  wandb_run_name=seed0-2cards-cola-lora-qkv-classifier
   share=false
   wandb_run_name=roberta-sara
   
   exp_dir=../roberta_glue_reproduce/${wandb_run_name}
 #CUDA_VISIBLE_DEVICES=0,1,2,4
-  CUDA_VISIBLE_DEVICES=1 HF_ENDPOINT=https://hf-mirror.com accelerate launch ./run_glue_lora.py \
+  HF_ENDPOINT=https://hf-mirror.com accelerate launch --main_process_port 29509 ./run_glue_lora.py  \
   --model_name_or_path FacebookAI/roberta-base  \
   --task_name ${task_name} \
   --do_train --do_eval \

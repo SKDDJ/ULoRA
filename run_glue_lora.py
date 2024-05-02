@@ -248,25 +248,32 @@ class ModelArguments:
 
 
 
-
 def print_vector_parameters(model):
     r"""
     Returns the number of trainable parameters and number of all parameters in the model.
     """
+    classifier_params = 0
+    
     trainable_params = 0
     vector_params = 0
     all_param = 0
     for n, param in model.named_parameters():
-        num_params = param.numel()
+        num_params = param.numel() 
         all_param += num_params
-        # if 'original_module' in n:
-            # continue
+        if 'original' in n:
+            continue
         if param.requires_grad:
+            if 'classifier' in n:
+                classifier_params += num_params
             trainable_params += num_params
             if "vector_z" in n:
                 vector_params += num_params
+        print(f"{n} : {num_params:,d}\n")
     print(
         f"vector params: {vector_params:,d} || trainable params: {trainable_params:,d} || all params: {all_param:,d} || trainable%: {100 * trainable_params / all_param}"
+    )
+    print(
+        f"vector params: {vector_params:,d} || trainable params(wo classifier): {trainable_params-classifier_params:,d} || all params: {all_param-classifier_params:,d} || trainable%: {100 * (trainable_params-classifier_params) / (all_param-classifier_params)}"
     )
     return vector_params
 
@@ -383,8 +390,6 @@ def main():
             label_list.sort()  # Let's sort it for determinism
             num_labels = len(label_list)
 
-
-
     # if main_process then use wandb.init()
     accelerator = Accelerator()
     # if accelerator.is_main_process:
@@ -418,14 +423,13 @@ def main():
         # use_auth_token=True if model_args.use_auth_token else None,
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
     )
-    
     model, tokenizer = accelerator.prepare(model, tokenizer)
     # print(model.device) #cpu
     # model = accelerator.prepare_model(model)
 
     sara_config = {
     nn.Linear: {
-        "weight": partial(LoRAParametrization.from_linear, rank=768),
+        "weight": partial(LoRAParametrization.from_linear, rank=8, lora_dropout_p=0.0, lora_alpha=16),
     },
 }
     target_modules=model_args.target_modules
@@ -433,7 +437,7 @@ def main():
     # test 
     # if accelerator.is_local_main_process:
     with monit.section("get_LoRA_model"):
-        print(model.device)
+        # print(model.device)
         add_lora_by_name(model, target_module_names=target_modules,lora_config=sara_config)
 
     
@@ -455,8 +459,8 @@ def main():
         {"params": list(get_lora_params(model))},
         {"params": classifer_params, "lr": training_args.learning_rate} if train_classifer else None,
     ]
-    
-    print_vector_parameters(model)
+    if accelerator.is_local_main_process:
+        print_vector_parameters(model)
     
     # for name, param in model.state_dict().items():
     #     print(name, param.size())
@@ -464,14 +468,14 @@ def main():
     optimizer = torch.optim.AdamW(params=parameters, lr=training_args.learning_rate)
     
     optimizer = accelerator.prepare_optimizer(optimizer)
-
-    state_dict_to_save = get_lora_state_dict(model)
-    print("*** state_dict_to_save ***\n")
-    print(state_dict_to_save.keys())
+ # for name, param in model.state_dict().items():
+    #     print(name, param.size())
+    # state_dict_to_save = get_sara_state_dict(model)
+    # print("*** state_dict_to_save ***\n")
+    # print(state_dict_to_save.keys())
     # todo note: distributed
-    # model = model.module
+    model = model.module
     # if the accelerate is the distributed training, the model is the model.module
-    
     # model = accelerator.unwrap_model(model)
     
     if model_args.lora_path is not None and data_args.task_name in ['mrpc', 'rte', 'stsb']:
@@ -505,8 +509,6 @@ def main():
     label_to_id = None
     if (
             model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
-            # distributed need model.module
-            # model.module.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
             and data_args.task_name is not None
             and not is_regression 
     ):
@@ -529,8 +531,7 @@ def main():
     elif data_args.task_name is not None and not is_regression:
         model.config.label2id = {l: i for i, l in enumerate(label_list)}
         model.config.id2label = {id: label for label, id in config.label2id.items()}
-    # print("*** label and id ***")
-    # print(model.config.label2id)
+
     if data_args.max_seq_length > tokenizer.model_max_length:
         logger.warning(
             f"The max_seq_length passed ({data_args.max_seq_length}) is larger than the maximum length for the"
@@ -581,16 +582,7 @@ def main():
         if data_args.max_predict_samples is not None:
             max_predict_samples = min(len(predict_dataset), data_args.max_predict_samples)
             predict_dataset = predict_dataset.select(range(max_predict_samples))
-    # print('train_dataset', len(train_dataset))
-    # print('eval_dataset', len(eval_dataset))
-    # print('predict_dataset', len(predict_dataset))
 
-    # Log a few random samples from the training set:
-    # if training_args.do_train:
-        # for index in random.sample(range(len(train_dataset)), 3):
-            # logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-    
-    # Get the metric function
     if data_args.task_name is not None:
         metric = evaluate.load("glue", data_args.task_name)
     elif is_regression:
@@ -598,8 +590,6 @@ def main():
     else:
         metric = evaluate.load("accuracy")
 
-    # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
-    # predictions and label_ids field) and has to return a dictionary string to float.
     def compute_metrics(p: EvalPrediction):
         preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
         preds = np.squeeze(preds) if is_regression else np.argmax(preds, axis=1)
@@ -608,8 +598,6 @@ def main():
             result["combined_score"] = np.mean(list(result.values())).item()
         return result
 
-    # Data collator will default to DataCollatorWithPadding when the tokenizer is passed to Trainer, so we change it if
-    # we already did the padding.
     if data_args.pad_to_max_length:
         data_collator = default_data_collator
     elif training_args.fp16:
@@ -617,15 +605,11 @@ def main():
     else:
         data_collator = None
 
-
-    
     # # 遍历模型的所有参数
-    # for name, param in model.named_parameters():
-    #     if param.requires_grad:
-    #         print(f"{name} 是可训练的: {param.requires_grad}")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name} 是可训练的: {param.requires_grad}")
 
-    
-            
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -637,9 +621,6 @@ def main():
         optimizers=(optimizer, None),
     )
     model.config.use_cache = False
-
-    if torch.__version__ >= "2" and sys.platform != "win32":
-        model = torch.compile(model)
 
     # Training
     if training_args.do_train:
@@ -661,11 +642,8 @@ def main():
         # save
         # accelerator.save(unwrapped_model.state_dict(), filename)
 
-        # trainer.save_model()  # Saves the tokenizer too for easy upload
-
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
-        # trainer.save_state()
 
     # Evaluation
     if training_args.do_eval:
@@ -735,12 +713,6 @@ def main():
                             if "mnli" in task or "rte" in task or "qnli" in task :
                                 item = label_list[item]
                             writer.write(f"{index}\t{item}\n")
-
-
-def _mp_fn(index):
-    # For xla_spawn (TPUs)
-    main()
-
 
 if __name__ == "__main__":
     main()

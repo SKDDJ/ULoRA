@@ -2,15 +2,19 @@ export num_gpus=2
 export CUBLAS_WORKSPACE_CONFIG=":16:8" # https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
 export PYTHONHASHSEED=0
 export output_dir="./cola"
-python -m torch.distributed.launch --nproc_per_node=$num_gpus \
+export TRANSFORMERS_OFFLINE=1
+export PYTORCH_TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
+
+CUDA_VISIBLE_DEVICES=6,7 HF_ENDPOINT=https://hf-mirror.com python -m torch.distributed.launch --nproc_per_node=$num_gpus \
+--master_port=23456 \
 examples/text-classification/run_glue.py \
 --model_name_or_path roberta-base \
 --task_name cola \
 --do_train \
 --do_eval \
 --max_seq_length 512 \
---per_device_train_batch_size 32 \
---learning_rate 4e-4 \
+--per_device_train_batch_size 64 \
+--learning_rate 1e-2 \
 --num_train_epochs 80 \
 --output_dir $output_dir/model \
 --overwrite_output_dir \
