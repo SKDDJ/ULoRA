@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export WANDB_MODE=offline
+# export WANDB_MODE=offline
 
 
 run(){
   task_name="cola"
   learning_rate=1e-2
-  num_train_epochs=800
+  num_train_epochs=80
   per_device_train_batch_size=64
   rank=768
   l_num=12 # layer number
@@ -14,7 +14,7 @@ run(){
   use_sara=True
   lora_alpha="768"
   target_modules="query value key" # test add key
-  train_classifer=True
+  train_classifier=True
   # target_modules="query" # test query only
   # target_modules=["q_proj","o_proj","k_proj","v_proj","gate_proj","up_proj","down_proj",]
   # mode="base"
@@ -27,13 +27,13 @@ run(){
   exp_dir=./roberta_glue_sara_reproduce/${wandb_run_name}
 
 
-  CUDA_VISIBLE_DEVICES=0 HF_ENDPOINT=https://hf-mirror.com accelerate launch ./run_glue_sara.py \
+  CUDA_VISIBLE_DEVICES=0,2 HF_ENDPOINT=https://hf-mirror.com accelerate launch ./run_glue_sara.py \
   --model_name_or_path FacebookAI/roberta-base  \
   --task_name ${task_name} \
   --do_train --do_eval \
   --max_seq_length 512 \
   --per_device_train_batch_size ${per_device_train_batch_size} \
-  --train_classifer ${train_classifer} \
+  --train_classifier ${train_classifier} \
   --use_sara ${use_sara} \
   --per_device_eval_batch_size ${per_device_train_batch_size} \
   --load_best_model_at_end True --metric_for_best_model "matthews_correlation" \

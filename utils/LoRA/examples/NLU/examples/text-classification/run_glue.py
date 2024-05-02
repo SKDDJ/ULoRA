@@ -45,6 +45,12 @@ from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers.utils import check_min_version
 
 
+# 分布式训练会开启多个进程，因此模型的保存、日志输出、控制台打印等也会进行多次
+# 因此直接保存会发生冲突
+# 遇到此类操作都需要加判断，只在主进程时进行
+
+
+
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.4.0")
 
@@ -61,6 +67,31 @@ task_to_keys = {
 }
 
 logger = logging.getLogger(__name__)
+
+def print_vector_parameters(model):
+    r"""
+    Returns the number of trainable parameters and number of all parameters in the model.
+    """
+    trainable_params = 0
+    vector_params = 0
+    all_param = 0
+    for n, param in model.named_parameters():
+        num_params = param.numel()
+        all_param += num_params
+        # if 'original_module' in n:
+            # continue
+        if 'original' in n:
+            continue
+        if param.requires_grad:
+            trainable_params += num_params
+            if "vector_z" in n:
+                vector_params += num_params
+        print(f"{n} : {num_params:,d}\n")
+    print(
+        f"vector params: {vector_params:,d} || trainable params: {trainable_params:,d} || all params: {all_param:,d} || trainable%: {100 * trainable_params / all_param}"
+    )
+    return vector_params
+
 
 
 @dataclass
@@ -338,6 +369,10 @@ def main():
             label_list.sort()  # Let's sort it for determinism
             num_labels = len(label_list)
 
+    import wandb
+    if is_main_process(training_args.local_rank):
+        wandb.init(project='test_sara', name='2cards-realLoRA-seed0-qkv-classifier-cola', config=training_args)
+
     # Load pretrained model and tokenizer
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
@@ -533,6 +568,11 @@ def main():
     else:
         data_collator = None
 
+
+    if is_main_process(training_args.local_rank):
+        print("全体目光向我看齐\n"*20)
+        print_vector_parameters(model)
+
     # Initialize our Trainer
     trainer = Trainer(
         model=model,
@@ -565,6 +605,7 @@ def main():
         trainer.save_model()  # Saves the tokenizer too for easy upload
 
         trainer.log_metrics("train", metrics)
+        # wandb.log("train",metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 

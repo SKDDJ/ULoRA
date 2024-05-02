@@ -88,6 +88,10 @@ class DataTrainingArguments:
         default='',
         metadata={"help": "The name of the wandb project" },
     )
+    wandb_run_name: Optional[str] = field(
+        default='',
+        metadata={"help": "The name of the wandb run" },
+    )
     wandb_watch: Optional[str] = field(
         default='',
         metadata={"help": "options: false | gradients | all"},
@@ -201,7 +205,7 @@ class ModelArguments:
     target_modules: Optional[List[str]] = field(
         default=None, metadata={"help": "Target modules of lora"}
     )
-    train_classifer: bool = field(
+    train_classifier: bool = field(
         default=True, metadata={"help": "Whether to train classifier"}
     )
     use_sara: bool = field(
@@ -249,25 +253,31 @@ def print_vector_parameters(model):
     r"""
     Returns the number of trainable parameters and number of all parameters in the model.
     """
+    classifier_params = 0
+    
     trainable_params = 0
     vector_params = 0
     all_param = 0
     for n, param in model.named_parameters():
-        num_params = param.numel()
+        num_params = param.numel() 
         all_param += num_params
-        # if 'original_module' in n:
-            # continue
         if 'original' in n:
+            # print(f"{n} : {num_params:,d}\n")
             continue
         if param.requires_grad:
+            if 'classifier' in n:
+                classifier_params += num_params
             trainable_params += num_params
             if "vector_z" in n:
                 vector_params += num_params
+        # print(f"{n} : {num_params:,d}\n")
     print(
         f"vector params: {vector_params:,d} || trainable params: {trainable_params:,d} || all params: {all_param:,d} || trainable%: {100 * trainable_params / all_param}"
     )
+    print(
+        f"vector params: {vector_params:,d} || trainable params(wo classifier): {trainable_params-classifier_params:,d} || all params: {all_param-classifier_params:,d} || trainable%: {100 * (trainable_params-classifier_params) / (all_param-classifier_params)}"
+    )
     return vector_params
-
 
 def main():
 
@@ -283,6 +293,8 @@ def main():
 
     if len(data_args.wandb_project) > 0:
         os.environ["WANDB_PROJECT"] = data_args.wandb_project
+    if len(data_args.wandb_run_name) > 0:
+        os.environ["WANDB_NAME"] = data_args.wandb_run_name
     if len(data_args.wandb_watch) > 0:
         os.environ["WANDB_WATCH"] = data_args.wandb_watch
     if len(data_args.wandb_log_model) > 0:
@@ -372,7 +384,7 @@ def main():
     },
 }
     target_modules=model_args.target_modules
-    train_classifer=model_args.train_classifer
+    train_classifier=model_args.train_classifier
     # if accelerator.is_local_main_process:
     if model_args.use_sara:
         with monit.section("Apply_SaRA"):
@@ -387,23 +399,24 @@ def main():
         param.requires_grad = True
     classifer_params = []
     # 假设我们想要冻结模型的所有参数，除了 vector_z
-    if train_classifer:
+    if train_classifier:
         for name, param in model.named_parameters():
             if "classifier" in name:
                 classifer_params.append(param)
                 param.requires_grad = True
     # whether train classifier 
-    if train_classifer:
+    if train_classifier:
         parameters = [
             {"params": list(get_sara_params(model))},
-            {"params": classifer_params, "lr": training_args.learning_rate} if train_classifer else None,
+            {"params": classifer_params, "lr": training_args.learning_rate} if train_classifier else None,
         ]
     else:
         parameters = [
             {"params": list(get_sara_params(model))},
         ]
     
-    print_vector_parameters(model)
+    if accelerator.is_local_main_process:
+        print_vector_parameters(model)
     
     optimizer = torch.optim.AdamW(params=parameters, lr=training_args.learning_rate)
     optimizer = accelerator.prepare_optimizer(optimizer)
@@ -414,7 +427,7 @@ def main():
     # print("*** state_dict_to_save ***\n")
     # print(state_dict_to_save.keys())
     # todo note: distributed
-    # model = model.module
+    model = model.module
     # if the accelerate is the distributed training, the model is the model.module
     # model = accelerator.unwrap_model(model)
     
@@ -491,7 +504,8 @@ def main():
             result["label"] = [(label_to_id[l] if l != -1 else -1) for l in examples["label"]]
         return result
 
-    with training_args.main_process_first(desc="dataset map pre-processing"):
+    # with training_args.main_process_first(desc="dataset map pre-processing"):
+    with accelerator.main_process_first():
         raw_datasets = raw_datasets.map(
             preprocess_function,
             batched=True,
@@ -546,9 +560,10 @@ def main():
         data_collator = None
 
     # # 遍历模型的所有参数
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"{name} 是可训练的: {param.requires_grad}")
+    if accelerator.is_local_main_process:
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print(f"{name} 是可训练的: {param.requires_grad}")
 
     trainer = Trainer(
         model=model,
@@ -583,76 +598,76 @@ def main():
         # accelerator.save(unwrapped_model.state_dict(), filename)
 
         trainer.log_metrics("train", metrics)
-        trainer.save_metrics("train", metrics)
+        # trainer.save_metrics("train", metrics)
 
-    # Evaluation
-    if training_args.do_eval:
-        logger.info("*** Evaluate ***")
-        eval_combined = {}
-        # Loop to handle MNLI double evaluation (matched, mis-matched)
-        tasks = [data_args.task_name]
-        eval_datasets = [eval_dataset]
-        if data_args.task_name == "mnli":
-            tasks.append("mnli-mm")
-            valid_mm_dataset = raw_datasets["validation_mismatched"]
-            if data_args.local_test:
-                valid_mm_dataset = valid_mm_dataset.select(range(8000, len(valid_mm_dataset)))
-            if data_args.max_eval_samples is not None:
-                max_eval_samples = min(len(valid_mm_dataset), data_args.max_eval_samples)
-                valid_mm_dataset = valid_mm_dataset.select(range(max_eval_samples))
-            eval_datasets.append(valid_mm_dataset)
-            combined = {}
+    # # Evaluation
+    # if training_args.do_eval:
+    #     logger.info("*** Evaluate ***")
+    #     eval_combined = {}
+    #     # Loop to handle MNLI double evaluation (matched, mis-matched)
+    #     tasks = [data_args.task_name]
+    #     eval_datasets = [eval_dataset]
+    #     if data_args.task_name == "mnli":
+    #         tasks.append("mnli-mm")
+    #         valid_mm_dataset = raw_datasets["validation_mismatched"]
+    #         if data_args.local_test:
+    #             valid_mm_dataset = valid_mm_dataset.select(range(8000, len(valid_mm_dataset)))
+    #         if data_args.max_eval_samples is not None:
+    #             max_eval_samples = min(len(valid_mm_dataset), data_args.max_eval_samples)
+    #             valid_mm_dataset = valid_mm_dataset.select(range(max_eval_samples))
+    #         eval_datasets.append(valid_mm_dataset)
+    #         combined = {}
 
-        for eval_dataset, task in zip(eval_datasets, tasks):
-            metrics = trainer.evaluate(eval_dataset=eval_dataset)
+    #     for eval_dataset, task in zip(eval_datasets, tasks):
+    #         metrics = trainer.evaluate(eval_dataset=eval_dataset)
 
-            max_eval_samples = (
-                data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-            )
-            metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+    #         max_eval_samples = (
+    #             data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+    #         )
+    #         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
-            if task == "mnli-mm":
-                metrics = {k + "_mm": v for k, v in metrics.items()}
-            if task is not None and "mnli" in task:
-                combined.update(metrics)
+    #         if task == "mnli-mm":
+    #             metrics = {k + "_mm": v for k, v in metrics.items()}
+    #         if task is not None and "mnli" in task:
+    #             combined.update(metrics)
 
-            eval_combined = combined if task is not None and "mnli" in task else metrics
-            trainer.log_metrics("eval", metrics)
-            wandb.log("eval", metrics)
-            # todo test log the vector_z
-            for n,p in model.named_parameters():
-                # wandb log 'vector_z' in name of model
-                if 'vector_z' in n:
-                   wandb.log(p.detach().cpu().tolist())
-                   wandb.watch(p)
-            trainer.save_metrics("eval", eval_combined)
-    if training_args.do_predict:
-        logger.info("*** Predict ***")
-        # Loop to handle MNLI double evaluation (matched, mis-matched)
-        tasks = [data_args.task_name]
-        predict_datasets = [predict_dataset]
-        if data_args.task_name == "mnli":
-            tasks.append("mnli-mm")
-            predict_datasets.append(raw_datasets["test_mismatched"])
+    #         eval_combined = combined if task is not None and "mnli" in task else metrics
+    #         trainer.log_metrics("eval", metrics)
+    #         wandb.log("eval", metrics)
+    #         # todo test log the vector_z
+    #         for n,p in model.named_parameters():
+    #             # wandb log 'vector_z' in name of model
+    #             if 'vector_z' in n:
+    #                wandb.log(p.detach().cpu().tolist())
+    #                wandb.watch(p)
+    #         trainer.save_metrics("eval", eval_combined)
+    # if training_args.do_predict:
+    #     logger.info("*** Predict ***")
+    #     # Loop to handle MNLI double evaluation (matched, mis-matched)
+    #     tasks = [data_args.task_name]
+    #     predict_datasets = [predict_dataset]
+    #     if data_args.task_name == "mnli":
+    #         tasks.append("mnli-mm")
+    #         predict_datasets.append(raw_datasets["test_mismatched"])
 
-        for predict_dataset, task in zip(predict_datasets, tasks):
-            # Removing the `label` columns because it contains -1 and Trainer won't like that.
-            predict_dataset = predict_dataset.remove_columns("label")
-            predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
-            predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
+    #     for predict_dataset, task in zip(predict_datasets, tasks):
+    #         # Removing the `label` columns because it contains -1 and Trainer won't like that.
+    #         predict_dataset = predict_dataset.remove_columns("label")
+    #         predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
+    #         predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
 
-            output_predict_file = os.path.join(training_args.output_dir, f"predict_results_{task}.txt")
-            if trainer.is_world_process_zero():
-                with open(output_predict_file, "w") as writer:
-                    logger.info(f"***** Predict results {task} *****")
-                    writer.write("index\tprediction\n")
-                    for index, item in enumerate(predictions):
-                        if is_regression:
-                            writer.write(f"{index}\t{item:3.3f}\n")
-                        else:
-                            if "mnli" in task or "rte" in task or "qnli" in task :
-                                item = label_list[item]
-                            writer.write(f"{index}\t{item}\n")
+    #         output_predict_file = os.path.join(training_args.output_dir, f"predict_results_{task}.txt")
+    #         if trainer.is_world_process_zero():
+    #             with open(output_predict_file, "w") as writer:
+    #                 logger.info(f"***** Predict results {task} *****")
+    #                 writer.write("index\tprediction\n")
+    #                 for index, item in enumerate(predictions):
+    #                     if is_regression:
+    #                         writer.write(f"{index}\t{item:3.3f}\n")
+    #                     else:
+    #                         if "mnli" in task or "rte" in task or "qnli" in task :
+    #                             item = label_list[item]
+    #                         writer.write(f"{index}\t{item}\n")
 
 if __name__ == "__main__":
     main()

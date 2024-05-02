@@ -41,7 +41,7 @@ pip-delete-this-directory.txt
 wandb/
 roberta_glue_sara_reproduce/
 utils/LoRA/examples/
-
+utils/LoRA/
 # Unit test / coverage reports
 htmlcov/
 .tox/
