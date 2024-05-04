@@ -4,11 +4,28 @@ export TRANSFORMERS_CACHE=/root/.cache/huggingface/hub
 export HF_HOME=/root/.cache/huggingface
 export XDG_CACHE_HOME=/root/.cache
 
-declare -A epochs=(["mnli"]=30 ["mrpc"]=30 ["qnli"]=25 ["qqp"]=25 ["rte"]=160 ["sst2"]=60 ["stsb"]=80 ["cola"]=80)
-declare -A bs=(["mnli"]=64 ["mrpc"]=64 ["qnli"]=64 ["qqp"]=64 ["rte"]=64 ["sst2"]=64 ["stsb"]=64 ["cola"]=64)
+# declare -A epochs=(["mnli"]=30 ["mrpc"]=30 ["qnli"]=25 ["qqp"]=25 ["rte"]=160 ["sst2"]=60 ["stsb"]=80 ["cola"]=80)
+
+# roberta large
+declare -A epochs=(["mnli"]=10 ["mrpc"]=40 ["qnli"]=20 ["qqp"]=10 ["rte"]=40 ["sst2"]=10 ["stsb"]=20 ["cola"]=40)
+
+# declare -A bs=(["mnli"]=64 ["mrpc"]=64 ["qnli"]=64 ["qqp"]=64 ["rte"]=64 ["sst2"]=64 ["stsb"]=64 ["cola"]=64)
+
+# roberta large
+declare -A bs=(["mnli"]=32 ["mrpc"]=32 ["qnli"]=32 ["qqp"]=32 ["rte"]=32 ["sst2"]=32 ["stsb"]=32 ["cola"]=32)
+
 # declare -A bs=(["mnli"]=128 ["mrpc"]=64 ["qnli"]=128 ["qqp"]=128 ["rte"]=64 ["sst2"]=64 ["stsb"]=128 ["cola"]=64)
-declare -A ml=(["mnli"]=512 ["mrpc"]=512 ["qnli"]=512 ["qqp"]=512 ["rte"]=512 ["sst2"]=512 ["stsb"]=512 ["cola"]=512)
-declare -A lr=(["mnli"]="4e-3" ["mrpc"]="1e-2" ["qnli"]="1e-2" ["qqp"]="4e-3" ["rte"]="4e-3" ["sst2"]="4e-3" ["stsb"]="1e-2" ["cola"]="1e-2")
+
+
+# declare -A ml=(["mnli"]=512 ["mrpc"]=512 ["qnli"]=512 ["qqp"]=512 ["rte"]=512 ["sst2"]=512 ["stsb"]=512 ["cola"]=512)
+# roberta large VeRA
+declare -A ml=(["mnli"]=128 ["mrpc"]=128 ["qnli"]=128 ["qqp"]=128 ["rte"]=128 ["sst2"]=128 ["stsb"]=128 ["cola"]=128)
+
+# declare -A lr=(["mnli"]="4e-3" ["mrpc"]="1e-2" ["qnli"]="1e-2" ["qqp"]="4e-3" ["rte"]="4e-3" ["sst2"]="4e-3" ["stsb"]="1e-2" ["cola"]="1e-2")
+
+# roberta large 
+declare -A lr=(["mnli"]="1e-2" ["mrpc"]="3e-2" ["qnli"]="1e-2" ["qqp"]="1e-2" ["rte"]="2e-2" ["sst2"]="1e-2" ["stsb"]="2e-2" ["cola"]="1e-2")
+
 declare -A metrics=(["mnli"]="accuracy" ["mrpc"]="accuracy" ["qnli"]="accuracy" ["qqp"]="accuracy" ["rte"]="accuracy" ["sst2"]="accuracy" ["stsb"]="pearson" ["cola"]="matthews_correlation")
 
 # export WANDB_MODE=offline
@@ -19,22 +36,22 @@ run(){
   learning_rate=${lr[$1]}
   num_train_epochs=${epochs[$1]}
   per_device_train_batch_size=${bs[$1]}
-  rank=768
+  rank=1024
   l_num=12
   seed=42
   use_sara=True
   train_classifier=True
-  lora_alpha="768"
+  lora_alpha="1024"
   target_modules="query value key"
   mode=$4
   lora_dropout=0.
   lora_bias=none
   lora_task_type=SEQ_CLS
-  wandb_project=sara_no_mnli_qqp_vera
-  wandb_run_name=roberta-sara-${task_name}-r-${rank}-qkv--seed-${seed}-bs-${per_device_train_batch_size}-lr-${learning_rate}-epochs-${num_train_epochs}
+  wandb_project=sara_large_hp_vera_glue
+  wandb_run_name=roberta-large-sara-${task_name}-r-${rank}-qkv--seed-${seed}-bs-${per_device_train_batch_size}-lr-${learning_rate}-epochs-${num_train_epochs}
 
-  HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 4 --main_process_port 26688 ./run_glue_sara.py \
-  --model_name_or_path FacebookAI/roberta-base  \
+  HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 2 --main_process_port 26689 ./run_glue_sara.py \
+  --model_name_or_path FacebookAI/roberta-large  \
   --task_name ${task_name} \
   --do_train --do_eval \
   --max_seq_length ${ml[$1]} \
@@ -60,11 +77,11 @@ run(){
   --overwrite_output_dir
 }
 
-# task_base=('mnli' 'qnli' )
+# task_base=('mnli' 'qqp' )
 
-# task_base=('mnli' 'mrpc' 'qnli' 'qqp' 'rte' 'sst2' 'stsb' 'cola')
+task_base=('mnli' 'cola' 'mrpc' 'qnli' 'qqp' 'rte' 'sst2' 'stsb' )
 
-task_base=('mrpc' 'qnli' 'rte' 'sst2' 'stsb' 'cola')
+# task_base=('mrpc' 'qnli' 'rte' 'sst2' 'stsb' 'cola')
 
 for task in "${task_base[@]}"; do
     run $task
