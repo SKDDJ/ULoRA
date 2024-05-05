@@ -185,11 +185,11 @@ class ModelArguments:
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
-    rank: List[int] = field(
-        default=8, metadata={"help": "rank of lora"}
+    rank: int = field(
+        default=8, metadata={"help": "rank of sara"}
     )
-    lora_alpha: List[int] = field(
-        default=16, metadata={"help": "alpha of lora"}
+    lora_alpha: int = field(
+        default=16, metadata={"help": "alpha of sara"}
     )
     target_modules: Optional[List[str]] = field(
         default=None, metadata={"help": "Target modules of lora"}
@@ -402,7 +402,7 @@ def main():
     # print("*** state_dict_to_save ***\n")
     # print(state_dict_to_save.keys())
     # todo note: distributed
-    model = model.module
+    model = model.module if hasattr(model, "module") else model
     # if the accelerate is the distributed training, the model is the model.module
     # model = accelerator.unwrap_model(model)
     
