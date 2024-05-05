@@ -1,27 +1,31 @@
 #!/bin/bash
 
-export TRANSFORMERS_CACHE=/root/.cache/huggingface/hub
+# export TRANSFORMERS_CACHE=/root/.cache/huggingface/hub
 export HF_HOME=/root/.cache/huggingface
 export XDG_CACHE_HOME=/root/.cache
 
-# roberta large
-declare -A epochs=(["mnli"]=10 ["mrpc"]=40 ["qnli"]=20 ["qqp"]=10 ["rte"]=40 ["sst2"]=10 ["stsb"]=20 ["cola"]=40)
+# LATEST
+# roberta large LoRA 
+declare -A epochs=(["mnli"]=10 ["sst2"]=10 ["mrpc"]=20 ["cola"]=20 ["qnli"]=10 ["qqp"]=20 ["rte"]=20  ["stsb"]=30 )
+
+# roberta large LoRA
+declare -A bs=(["mnli"]=4 ["sst2"]=4 ["mrpc"]=4 ["cola"]=32 ["qnli"]=4 ["qqp"]=4 ["rte"]=8  ["stsb"]=8 )
 
 
-# roberta large
-declare -A bs=(["mnli"]=32 ["mrpc"]=32 ["qnli"]=32 ["qqp"]=32 ["rte"]=32 ["sst2"]=32 ["stsb"]=32 ["cola"]=32)
+# roberta large LoRA
+declare -A ml=(["mnli"]=128 ["sst2"]=128 ["mrpc"]=512 ["cola"]=128 ["qnli"]=512 ["qqp"]=512 ["rte"]=512  ["stsb"]=512 )
 
 
-# roberta large VeRA
-declare -A ml=(["mnli"]=128 ["mrpc"]=128 ["qnli"]=128 ["qqp"]=128 ["rte"]=128 ["sst2"]=128 ["stsb"]=128 ["cola"]=128)
-
-# roberta large 
-declare -A lr=(["mnli"]="1e-2" ["mrpc"]="3e-2" ["qnli"]="1e-2" ["qqp"]="1e-2" ["rte"]="2e-2" ["sst2"]="1e-2" ["stsb"]="2e-2" ["cola"]="1e-2")
+# Learning Rate roberta large LoRA
+# cola from 2e-4 to 8e-6
+# mrpc from 3e-4 to 6e-5
+# qnli from 3e-4 to 4e-5
+# stsb from 2e-4 to 4e-5
+declare -A lr=(["mnli"]="3e-4" ["sst2"]="4e-4" ["mrpc"]="6e-5" ["cola"]="2e-4" ["qnli"]="4e-5" ["qqp"]="3e-4" ["rte"]="4e-4"  ["stsb"]="4e-5" )
 
 declare -A metrics=(["mnli"]="accuracy" ["mrpc"]="accuracy" ["qnli"]="accuracy" ["qqp"]="accuracy" ["rte"]="accuracy" ["sst2"]="accuracy" ["stsb"]="pearson" ["cola"]="matthews_correlation")
 
-# export WANDB_MODE=offline
-seed=42
+export WANDB_MODE=offline
 
 run(){
   task_name=$1
@@ -33,16 +37,16 @@ run(){
   seed=42
   use_sara=True
   train_classifier=True
-  lora_alpha="1024"
-  target_modules="query value key"
-  mode=$4
+  lora_alpha=1024
+  target_modules="query value"
   lora_dropout=0.
   lora_bias=none
   lora_task_type=SEQ_CLS
-  wandb_project=sara_large_hp_vera_glue
-  wandb_run_name=roberta-large-sara-${task_name}-r-${rank}-qkv--seed-${seed}-bs-${per_device_train_batch_size}-lr-${learning_rate}-epochs-${num_train_epochs}
 
-  HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 4 --main_process_port 26688 ./run_glue_sara.py \
+  export WANDB_PROJECT=5-5-bf16-sara_large_hp_LoRA_glue
+  export WANDB_NAME=large-sara-${task_name}-r-${rank}-target_modules-${target_modules}-seed-${seed}-bs-${per_device_train_batch_size}-lr-${learning_rate}-epochs-${num_train_epochs}
+
+  HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 6 --main_process_port 26689 ./run_glue_sara.py \
   --model_name_or_path FacebookAI/roberta-large  \
   --task_name ${task_name} \
   --do_train --do_eval \
@@ -58,22 +62,18 @@ run(){
   --save_strategy epoch \
   --weight_decay 0. \
   --warmup_ratio 0.06 \
-  --logging_steps 10 \
-  --seed ${seed} --wandb_project ${wandb_project} \
-  --lora_alpha '768' --lora_dropout 0. --lora_bias none \
+  --logging_steps 1 \
+  --seed ${seed}  \
+  --lora_alpha ${lora_alpha} --lora_dropout ${lora_dropout} \
+  --lora_task_type ${lora_task_type}  \
   --target_modules ${target_modules} --rank ${rank} \
-  --lora_task_type SEQ_CLS  \
+  --lora_bias ${lora_bias} \
   --output_dir ${exp_dir}/model \
   --logging_dir ${exp_dir}/log \
-  --wandb_run_name ${wandb_run_name} \
   --overwrite_output_dir
 }
 
-# task_base=('mnli' 'qqp' )
-
-task_base=('mnli' 'cola' 'mrpc' 'qnli' 'qqp' 'rte' 'sst2' 'stsb' )
-
-# task_base=('mrpc' 'qnli' 'rte' 'sst2' 'stsb' 'cola')
+task_base=('cola' 'mrpc' 'mnli' 'qqp' 'qnli' 'rte' 'sst2' 'stsb' )
 
 for task in "${task_base[@]}"; do
     run $task
