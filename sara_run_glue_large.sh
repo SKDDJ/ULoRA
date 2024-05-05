@@ -11,10 +11,8 @@ declare -A epochs=(["mnli"]=10 ["sst2"]=10 ["mrpc"]=20 ["cola"]=20 ["qnli"]=10 [
 # roberta large LoRA
 declare -A bs=(["mnli"]=4 ["sst2"]=4 ["mrpc"]=4 ["cola"]=32 ["qnli"]=4 ["qqp"]=4 ["rte"]=8  ["stsb"]=8 )
 
-
 # roberta large LoRA
 declare -A ml=(["mnli"]=128 ["sst2"]=128 ["mrpc"]=512 ["cola"]=128 ["qnli"]=512 ["qqp"]=512 ["rte"]=512  ["stsb"]=512 )
-
 
 # Learning Rate roberta large LoRA
 # cola from 2e-4 to 8e-6
@@ -25,7 +23,7 @@ declare -A lr=(["mnli"]="3e-4" ["sst2"]="4e-4" ["mrpc"]="6e-5" ["cola"]="2e-4" [
 
 declare -A metrics=(["mnli"]="accuracy" ["mrpc"]="accuracy" ["qnli"]="accuracy" ["qqp"]="accuracy" ["rte"]="accuracy" ["sst2"]="accuracy" ["stsb"]="pearson" ["cola"]="matthews_correlation")
 
-export WANDB_MODE=offline
+# export WANDB_MODE=offline
 
 run(){
   task_name=$1
