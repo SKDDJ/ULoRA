@@ -28,22 +28,12 @@ from transformers import (
     default_data_collator,
     set_seed,
 )
-from peft import (
-    LoraConfig,
-    # MELoraConfig,
-    # AdaLoraConfig,
-    get_peft_model,
-    get_peft_model_state_dict,
-    # prepare_model_for_int8_training,
-    set_peft_model_state_dict,
-)
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 from accelerate import Accelerator
-# import accelerate
 import wandb
 
 from labml.logger import inspect
@@ -192,7 +182,6 @@ class ModelArguments:
         default=None, metadata={"help": "Path to peft model or model identifier from huggingface.co/models"}
     )
     l_num: int = field(default=None, metadata={"help": "How many Lora Weights for a pretrained weight"})
-    mode: str = field(default="cat1", metadata={"help": "Which mode to use for hierachical lora. Can be 'base', 'ada' or 'me'"})
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
@@ -234,15 +223,6 @@ class ModelArguments:
     model_revision: str = field(
         default="main",
         metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
-    use_auth_token: bool = field(
-        default=False,
-        metadata={
-            "help": (
-                "Will use the token generated when running `huggingface-cli login` (necessary to use this script "
-                "with private models)."
-            )
-        },
     )
     ignore_mismatched_sizes: bool = field(
         default=False,
@@ -316,7 +296,6 @@ def main():
             "glue",
             data_args.task_name,
             cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
         )
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
@@ -324,7 +303,6 @@ def main():
             data_args.dataset_name,
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
         )
 
     # Labels
@@ -358,14 +336,12 @@ def main():
         finetuning_task=data_args.task_name,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        # use_auth_token=True if model_args.use_auth_token else None,
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        # use_auth_token=True if model_args.use_auth_token else None,
     )
     model = AutoModelForSequenceClassification.from_pretrained(
         model_args.model_name_or_path,
@@ -373,14 +349,13 @@ def main():
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        # use_auth_token=True if model_args.use_auth_token else None,
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
     )
     model, tokenizer = accelerator.prepare(model, tokenizer)
 
     sara_config = {
     nn.Linear: {
-        "weight": partial(SaRAParametrization.from_linear, rank=768, lora_dropout_p=0.0, lora_alpha=768),
+        "weight": partial(SaRAParametrization.from_linear, rank=1024, lora_dropout_p=0.0, lora_alpha=1024),
     },
 }
     target_modules=model_args.target_modules
@@ -435,7 +410,7 @@ def main():
         print(f"*** Load MNLI weight from {os.path.join(model_args.lora_path,'adapter_model.bin')} ***")
         adapters_weights = torch.load(os.path.join(model_args.lora_path,'adapter_model.bin'), map_location=model.device)
         filtered_dict = {key: value for key, value in adapters_weights.items() if 'classifier' not in key}
-        set_peft_model_state_dict(model, filtered_dict)
+        # set_peft_model_state_dict(model, filtered_dict)
         del adapters_weights
     # Preprocessing the raw_datasets
     if data_args.task_name is not None:
@@ -599,75 +574,5 @@ def main():
 
         trainer.log_metrics("train", metrics)
         # trainer.save_metrics("train", metrics)
-
-    # # Evaluation
-    # if training_args.do_eval:
-    #     logger.info("*** Evaluate ***")
-    #     eval_combined = {}
-    #     # Loop to handle MNLI double evaluation (matched, mis-matched)
-    #     tasks = [data_args.task_name]
-    #     eval_datasets = [eval_dataset]
-    #     if data_args.task_name == "mnli":
-    #         tasks.append("mnli-mm")
-    #         valid_mm_dataset = raw_datasets["validation_mismatched"]
-    #         if data_args.local_test:
-    #             valid_mm_dataset = valid_mm_dataset.select(range(8000, len(valid_mm_dataset)))
-    #         if data_args.max_eval_samples is not None:
-    #             max_eval_samples = min(len(valid_mm_dataset), data_args.max_eval_samples)
-    #             valid_mm_dataset = valid_mm_dataset.select(range(max_eval_samples))
-    #         eval_datasets.append(valid_mm_dataset)
-    #         combined = {}
-
-    #     for eval_dataset, task in zip(eval_datasets, tasks):
-    #         metrics = trainer.evaluate(eval_dataset=eval_dataset)
-
-    #         max_eval_samples = (
-    #             data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-    #         )
-    #         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
-
-    #         if task == "mnli-mm":
-    #             metrics = {k + "_mm": v for k, v in metrics.items()}
-    #         if task is not None and "mnli" in task:
-    #             combined.update(metrics)
-
-    #         eval_combined = combined if task is not None and "mnli" in task else metrics
-    #         trainer.log_metrics("eval", metrics)
-    #         wandb.log("eval", metrics)
-    #         # todo test log the vector_z
-    #         for n,p in model.named_parameters():
-    #             # wandb log 'vector_z' in name of model
-    #             if 'vector_z' in n:
-    #                wandb.log(p.detach().cpu().tolist())
-    #                wandb.watch(p)
-    #         trainer.save_metrics("eval", eval_combined)
-    # if training_args.do_predict:
-    #     logger.info("*** Predict ***")
-    #     # Loop to handle MNLI double evaluation (matched, mis-matched)
-    #     tasks = [data_args.task_name]
-    #     predict_datasets = [predict_dataset]
-    #     if data_args.task_name == "mnli":
-    #         tasks.append("mnli-mm")
-    #         predict_datasets.append(raw_datasets["test_mismatched"])
-
-    #     for predict_dataset, task in zip(predict_datasets, tasks):
-    #         # Removing the `label` columns because it contains -1 and Trainer won't like that.
-    #         predict_dataset = predict_dataset.remove_columns("label")
-    #         predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
-    #         predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
-
-    #         output_predict_file = os.path.join(training_args.output_dir, f"predict_results_{task}.txt")
-    #         if trainer.is_world_process_zero():
-    #             with open(output_predict_file, "w") as writer:
-    #                 logger.info(f"***** Predict results {task} *****")
-    #                 writer.write("index\tprediction\n")
-    #                 for index, item in enumerate(predictions):
-    #                     if is_regression:
-    #                         writer.write(f"{index}\t{item:3.3f}\n")
-    #                     else:
-    #                         if "mnli" in task or "rte" in task or "qnli" in task :
-    #                             item = label_list[item]
-    #                         writer.write(f"{index}\t{item}\n")
-
 if __name__ == "__main__":
     main()
