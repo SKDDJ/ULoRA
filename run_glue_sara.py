@@ -352,10 +352,10 @@ def main():
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
     )
     model, tokenizer = accelerator.prepare(model, tokenizer)
-
+    
     sara_config = {
     nn.Linear: {
-        "weight": partial(SaRAParametrization.from_linear, rank=1024, lora_dropout_p=0.0, lora_alpha=1024),
+        "weight": partial(SaRAParametrization.from_linear, rank=model_args.rank, lora_dropout_p=model_args.lora_dropout, lora_alpha=model_args.lora_alpha)
     },
 }
     target_modules=model_args.target_modules
