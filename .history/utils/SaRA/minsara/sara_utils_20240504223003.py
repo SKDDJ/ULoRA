@@ -23,7 +23,7 @@ def name_is_sara(name):
     return (
         len(name.split(".")) >= 4
         and (name.split(".")[-4]) == "parametrizations"
-        and name.split(".")[-1] in ["vector_z","scaling_factor"]
+        and name.split(".")[-1] in ["vector_z"]
         # and name.split(".")[-1] in ["lora_A", "lora_B","vector_z"]
     )
 
