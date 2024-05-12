@@ -23,28 +23,28 @@ declare -A lr=(["mnli"]="3e-4" ["sst2"]="4e-4" ["mrpc"]="6e-5" ["cola"]="2e-4" [
 
 declare -A metrics=(["mnli"]="accuracy" ["mrpc"]="accuracy" ["qnli"]="accuracy" ["qqp"]="accuracy" ["rte"]="accuracy" ["sst2"]="accuracy" ["stsb"]="pearson" ["cola"]="matthews_correlation")
 
-# export WANDB_MODE=offline
+export WANDB_MODE=offline
 
 run(){
   task_name=$1
   learning_rate=${lr[$1]}
   num_train_epochs=${epochs[$1]}
   per_device_train_batch_size=${bs[$1]}
-  rank=1024
+  rank=8
   l_num=12
-  seed=42
+  seed=123
   use_sara=True
   train_classifier=True
-  lora_alpha=1024
+  lora_alpha=16
   target_modules="query value"
   lora_dropout=0.
   lora_bias=none
   lora_task_type=SEQ_CLS
 
-  export WANDB_PROJECT=5-5-bf16_sara_large_hp_LoRA_glue
+  export WANDB_PROJECT=5-6-bf16-sara_large_hp_LoRA_glue
   export WANDB_NAME=large-sara-${task_name}-r-${rank}-target_modules-${target_modules}-seed-${seed}-bs-${per_device_train_batch_size}-lr-${learning_rate}-epochs-${num_train_epochs}
 
-  HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 3 --main_process_port 26689 ./run_glue_sara.py \
+  HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 5 --main_process_port 26689 ./run_glue_sara.py \
   --model_name_or_path FacebookAI/roberta-large  \
   --task_name ${task_name} \
   --do_train --do_eval \
@@ -71,7 +71,7 @@ run(){
   --overwrite_output_dir
 }
 
-task_base=('mnli' 'cola' 'mrpc'  'qnli' 'rte' 'sst2' 'stsb' 'qqp' )
+task_base=('cola' 'mrpc' 'mnli' 'qqp' 'qnli' 'rte' 'sst2' 'stsb' )
 
 for task in "${task_base[@]}"; do
     run $task

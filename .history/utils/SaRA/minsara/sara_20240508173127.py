@@ -58,9 +58,8 @@ class SaRAParametrization(pl.LightningModule):
             self.lora_A = nn.Parameter(torch.zeros(self.swap((self.rank, self.fan_in))))
             self.lora_B = nn.Parameter(torch.zeros(self.swap((self.fan_out, self.rank))))
             self.vector_z = nn.Parameter(self.rank * torch.ones(1))
-            #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
-            self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
-            
+            #TODO TEST init a nn.Parameter name scaling_factor that is a scalar
+            # self.scaling_factor = nn.Parameter(torch.tensor(self.scaling*0.1))
             self.get_residual_matrix()
             self._forward_pre_hook_handle.remove()  # 移除钩子
             self._updated = True  # 更新标记，防止再次执
@@ -69,29 +68,16 @@ class SaRAParametrization(pl.LightningModule):
     def get_residual_matrix(self):
         r = self.rank
         init_sara_weights = self.init_sara_weights
-        
-        weight = self.layer_weights 
-        dtype = weight.dtype
-        
-        if dtype not in [torch.float32, torch.float16, torch.bfloat16]:
-            raise TypeError(
-                "Please initialize PiSSA under float32, float16, or bfloat16. "
-                "Subsequently, re-quantize the residual model to help minimize quantization errors."
-            )
-        weight = weight.to(torch.float32)
-        
         # todo check if it is need to del teh U V S
         if init_sara_weights == "svd":
-                V, S, Uh = torch.linalg.svd(weight.data, full_matrices=False)
+                V, S, Uh = torch.linalg.svd(self.layer_weights, full_matrices=False)
                 Vr = V[:, : r]
                 Sr = S[: r]
                 Sr /= self.scaling
                 Uhr = Uh[: r]
-        elif len(init_sara_weights.split("_niter_")) == 2:           
-            
-                    # todo: note llama needs fp32 self.layer_weights.to(torch.float32)
+        elif len(init_sara_weights.split("_niter_")) == 2:                    
                     Vr, Sr, Ur = svd_lowrank(
-                        weight.data, r, niter=int(init_sara_weights.split("_niter_")[-1])
+                        self.layer_weights, r, niter=int(init_sara_weights.split("_niter_")[-1])
                     )
                     Sr /= self.scaling
                     Uhr = Ur.t()
@@ -102,12 +88,7 @@ class SaRAParametrization(pl.LightningModule):
         # nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
         self.lora_A.data = lora_A
         self.lora_B.data = lora_B
-        self.vector_z.data = vector_z   
-        
-        
-        # TODO: test scaling_factor init from 0.1 to 1
-        print("self.scaling_factor init", self.scaling_factor)
-        print("self.vector_z init", self.vector_z)
+        self.vector_z.data = vector_z     
         
         # drop out which won't be used 
         self.lora_dropout = nn.Dropout(p=self.lora_dropout_p) if self.lora_dropout_p > 0 else lambda x: x
@@ -115,11 +96,9 @@ class SaRAParametrization(pl.LightningModule):
         self.register_buffer("lora_dropout_mask", torch.ones(self.swap((1, self.fan_in)), dtype=self.lora_A.dtype))
 
         resmat = self.layer_weights - self.scaling * lora_B @ torch.diag(vector_z) @lora_A 
-        
-        resmat = resmat.to(dtype)
-        
+  
         self.layer_weights.data = resmat
-        del resmat, lora_A, lora_B, vector_z, weight
+        del resmat, lora_A, lora_B, vector_z
         
     def _dropout(self, A):
         # to mimic the original implementation: A @ dropout(x), we do (A * dropout(ones)) @ x
@@ -130,9 +109,17 @@ class SaRAParametrization(pl.LightningModule):
     def sara_forward(self, X):
         # 之前的写法： # ADD RELU ACTIVATION FUNCTION
         diag_z = torch.diag(F.relu(self.vector_z))
-        #todo: test if learnable scaling factor is needed
-        print("self.scaling_factor init", self.scaling_factor)
-        result = self.scaling_factor * self.scaling * self.lora_B @ diag_z @ self.lora_A
+        
+        # print("self.scaling_factor", self.scaling_factor)
+        # inspect(self.scaling_factor)
+        # result = self.scaling_factor * self.scaling * self.lora_B @ diag_z @ self.lora_A
+        result = self.scaling * self.lora_B @ diag_z @ self.lora_A
+
+        # 优化的写法：
+        # 直接相乘而无需创建对角矩阵
+        # # todo : test relu 对结果屁用没有，还变成11s/it
+        # Bz = self.lora_B * F.relu(self.vector_z[:, None])  # 利用broadcasting扩展vector_z
+        # result = self.scaling * Bz @ self.lora_A
         del diag_z
         
         return X + result

@@ -186,10 +186,17 @@ class ModelArguments:
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
     rank: int = field(
+<<<<<<< HEAD:run_glue_sara.py
         default=8, metadata={"help": "rank of sara"}
     )
     lora_alpha: int = field(
         default=16, metadata={"help": "alpha of sara"}
+=======
+        default=8, metadata={"help": "rank of lora"}
+    )
+    lora_alpha: int = field(
+        default=16, metadata={"help": "alpha of lora"}
+>>>>>>> ec15cc9 (feat: support llama2):eval/glue_scripts/run_glue_sara.py
     )
     target_modules: Optional[List[str]] = field(
         default=None, metadata={"help": "Target modules of lora"}

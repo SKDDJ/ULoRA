@@ -1,4 +1,3 @@
-sentencepiece==0.2.0
 fire==0.6.0
 accelerate==0.29.3
 aiohttp==3.9.5
@@ -74,7 +73,7 @@ torchkeras==3.9.6
 torchmetrics==1.3.2
 
 tqdm==4.66.2
-transformers==4.40.2
+transformers==4.40.1
 triton==2.2.0
 tzdata==2024.1
 urllib3==2.2.1
