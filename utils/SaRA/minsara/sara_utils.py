@@ -48,10 +48,15 @@ def get_bias_params(model, print_shapes=False):
     return get_params_by_name(model, print_shapes=print_shapes, name_filter=name_is_bias)
 
 
-def get_sara_state_dict(model):
-    return {k: v for k, v in model.state_dict().items() if name_is_sara(k)}
+# def get_sara_state_dict(model):
+#     return {k: v for k, v in model.state_dict().items() if name_is_sara(k)}
 
+def get_sara_state_dict(model, original_state_dict):
+    return {k: v for k, v in original_state_dict.items() if name_is_sara(k)}
 
+def sara_state_dict(self):
+    original_state_dict = type(self).state_dict(self)  # 获取原始 state_dict
+    return get_sara_state_dict(self,original_state_dict)
 # # ------------------- helper function for inferencing with multiple lora -------------------
 
 

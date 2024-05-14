@@ -186,17 +186,10 @@ class ModelArguments:
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
     rank: int = field(
-<<<<<<< HEAD:run_glue_sara.py
-        default=8, metadata={"help": "rank of sara"}
-    )
-    lora_alpha: int = field(
-        default=16, metadata={"help": "alpha of sara"}
-=======
         default=8, metadata={"help": "rank of lora"}
     )
     lora_alpha: int = field(
         default=16, metadata={"help": "alpha of lora"}
->>>>>>> ec15cc9 (feat: support llama2):eval/glue_scripts/run_glue_sara.py
     )
     target_modules: Optional[List[str]] = field(
         default=None, metadata={"help": "Target modules of lora"}
@@ -360,8 +353,10 @@ def main():
     )
     model, tokenizer = accelerator.prepare(model, tokenizer)
     
+    
     sara_config = {
     nn.Linear: {
+        "weight": partial(SaRAParametrization.from_linear, rank=model_args.rank, lora_dropout_p=model_args.lora_dropout, lora_alpha=model_args.lora_alpha)
         "weight": partial(SaRAParametrization.from_linear, rank=model_args.rank, lora_dropout_p=model_args.lora_dropout, lora_alpha=model_args.lora_alpha)
     },
 }
@@ -417,6 +412,7 @@ def main():
         print(f"*** Load MNLI weight from {os.path.join(model_args.lora_path,'adapter_model.bin')} ***")
         adapters_weights = torch.load(os.path.join(model_args.lora_path,'adapter_model.bin'), map_location=model.device)
         filtered_dict = {key: value for key, value in adapters_weights.items() if 'classifier' not in key}
+        # set_peft_model_state_dict(model, filtered_dict)
         # set_peft_model_state_dict(model, filtered_dict)
         del adapters_weights
     # Preprocessing the raw_datasets
