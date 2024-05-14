@@ -42,6 +42,8 @@ wandb/
 roberta_glue_sara_reproduce/
 utils/LoRA/examples/
 utils/LoRA/
+utils/down_llama/transformers-4.40.2/*
+models/*
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -151,6 +153,7 @@ dmypy.json
 utils/down_llama/llama2/
 utils/down_llama/llama3/
 utils/down_llama/transformers-4.40.2/
+llama-lora/
 models/*
 PiSSA/
 

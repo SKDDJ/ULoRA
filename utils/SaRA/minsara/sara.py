@@ -60,6 +60,8 @@ class SaRAParametrization(pl.LightningModule):
             self.vector_z = nn.Parameter(self.rank * torch.ones(1))
             #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
             self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
+            #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
+            self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
             
             self.get_residual_matrix()
             self._forward_pre_hook_handle.remove()  # 移除钩子
@@ -72,6 +74,7 @@ class SaRAParametrization(pl.LightningModule):
         
         weight = self.layer_weights 
         dtype = weight.dtype
+        # print("weight dtype", dtype)
         
         if dtype not in [torch.float32, torch.float16, torch.bfloat16]:
             raise TypeError(
@@ -79,9 +82,12 @@ class SaRAParametrization(pl.LightningModule):
                 "Subsequently, re-quantize the residual model to help minimize quantization errors."
             )
         weight = weight.to(torch.float32)
+        # print("new weight dtype", weight.dtype)
+
         
         # todo check if it is need to del teh U V S
         if init_sara_weights == "svd":
+                V, S, Uh = torch.linalg.svd(weight.data, full_matrices=False)
                 V, S, Uh = torch.linalg.svd(weight.data, full_matrices=False)
                 Vr = V[:, : r]
                 Sr = S[: r]
@@ -90,7 +96,11 @@ class SaRAParametrization(pl.LightningModule):
         elif len(init_sara_weights.split("_niter_")) == 2:           
             
                     # todo: note llama needs fp32 self.layer_weights.to(torch.float32)
+        elif len(init_sara_weights.split("_niter_")) == 2:           
+            
+                    # todo: note llama needs fp32 self.layer_weights.to(torch.float32)
                     Vr, Sr, Ur = svd_lowrank(
+                        weight.data, r, niter=int(init_sara_weights.split("_niter_")[-1])
                         weight.data, r, niter=int(init_sara_weights.split("_niter_")[-1])
                     )
                     Sr /= self.scaling
@@ -106,8 +116,8 @@ class SaRAParametrization(pl.LightningModule):
         
         
         # TODO: test scaling_factor init from 0.1 to 1
-        print("self.scaling_factor init", self.scaling_factor)
-        print("self.vector_z init", self.vector_z)
+        # print("self.scaling_factor init", self.scaling_factor)
+        # print("self.vector_z init", self.vector_z)
         
         # drop out which won't be used 
         self.lora_dropout = nn.Dropout(p=self.lora_dropout_p) if self.lora_dropout_p > 0 else lambda x: x
@@ -118,7 +128,11 @@ class SaRAParametrization(pl.LightningModule):
         
         resmat = resmat.to(dtype)
         
+        
+        resmat = resmat.to(dtype)
+        
         self.layer_weights.data = resmat
+        del resmat, lora_A, lora_B, vector_z, weight
         del resmat, lora_A, lora_B, vector_z, weight
         
     def _dropout(self, A):
@@ -128,11 +142,13 @@ class SaRAParametrization(pl.LightningModule):
     # @torch.no_grad() # 这个地方的取消梯度很重要？ 好吧，非常他妈的重要！！！
     # 这里的逻辑有问题，干什么要每次都要重复加上这个结果呢，只需要最后加上就好了，我相当于反复的重复的加了SVD的值
     def sara_forward(self, X):
-        # 之前的写法： # ADD RELU ACTIVATION FUNCTION
-        diag_z = torch.diag(F.relu(self.vector_z))
-        #todo: test if learnable scaling factor is needed
-        print("self.scaling_factor init", self.scaling_factor)
+        torch_X_dtype = X.dtype #16
+        
+        diag_z = torch.diag(F.relu(self.vector_z)) # 32
+        # print("self.scaling_factor init", self.scaling_factor)
         result = self.scaling_factor * self.scaling * self.lora_B @ diag_z @ self.lora_A
+        
+        result = result.to(torch_X_dtype) # 32 -> 16
         del diag_z
         
         return X + result
