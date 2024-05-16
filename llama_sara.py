@@ -73,24 +73,43 @@ class FactorWeightLogCallback(TrainerCallback):
         if self.last_step >= state.global_step or state.global_step % 10 != 0:
             return
 
-        # 记录与因子相关的参数
+        # Initialize a dictionary to collect all the logging information
+        log_data_q = {}
+        log_data_v = {}
+
+        # Iterate over all parameters in the model that contain the word 'factor'
         for name, param in self.model.named_parameters():
-            if 'factor' in name:
-                param_values = param.detach().flatten().cpu().numpy()
+            if 'q_proj' in name:
+                if 'factor' in name:
+                    param_values = param.detach().flatten().cpu().numpy()
 
-                # 记录相关 statistics in wandb
-                wandb.log({
-                    f"{name}_hist": wandb.Histogram(param_values),
-                    f"{name}_min": param_values.min(),
-                    f"{name}_max": param_values.max(),
-                    f"{name}_mean": param_values.mean(),
-                    f"{name}_std": param_values.std()
-                }, step=state.global_step)
+                    # Populate the log_data dictionary with parameter statistics
+                    log_data_q.update({
+                        f"{name}_hist": wandb.Histogram(param_values),  # Histogram of parameter values
+                        f"{name}_min": param_values.min(),               # Minimum of parameter values
+                        f"{name}_max": param_values.max(),               # Maximum of parameter values
+                        f"{name}_mean": param_values.mean(),             # Mean of parameter values
+                        f"{name}_std": param_values.std()                # Standard deviation of parameter values
+                    })
+            elif 'v_proj' in name:
+                if 'factor' in name:
+                    param_values = param.detach().flatten().cpu().numpy()
 
+                    # Populate the log_data dictionary with parameter statistics
+                    log_data_v.update({
+                        f"{name}_hist": wandb.Histogram(param_values),  # Histogram of parameter values
+                        f"{name}_min": param_values.min(),               # Minimum of parameter values
+                        f"{name}_max": param_values.max(),               # Maximum of parameter values
+                        f"{name}_mean": param_values.mean(),             # Mean of parameter values
+                        f"{name}_std": param_values.std()                # Standard deviation of parameter values
+                    })
+
+        # Log all collected data at once. This helps in synchronizing the data display in WandB dashboard
+        wandb.log(log_data_q, step=state.global_step)
+        wandb.log(log_data_v, step=state.global_step)
+        
         self.last_step = state.global_step
-
-
-
+        
 
 def train(
     # model/data params
@@ -260,9 +279,9 @@ def train(
     # model, tokenizer = accelerator.prepare(model, tokenizer)
     target_modules=lora_target_modules
     with monit.section("Apply_SaRA"):
-        # # 打印模型参数的名称和大小
-        # for name, param in model.named_parameters():
-        #     print(f"{name}: {param.size()}")
+        # 打印模型参数的名称和大小
+        for name, param in model.named_parameters():
+            print(f"{name}: {param.size()}")
 
         # # 打印模型参数的名称和数据类型
         # for name, param in model.named_parameters():

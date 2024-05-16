@@ -57,6 +57,7 @@ def get_sara_state_dict(model, original_state_dict):
 def sara_state_dict(self):
     original_state_dict = type(self).state_dict(self)  # 获取原始 state_dict
     return get_sara_state_dict(self,original_state_dict)
+
 # # ------------------- helper function for inferencing with multiple lora -------------------
 
 

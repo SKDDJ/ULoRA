@@ -60,8 +60,6 @@ class SaRAParametrization(pl.LightningModule):
             self.vector_z = nn.Parameter(self.rank * torch.ones(1))
             #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
             self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
-            #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
-            self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
             
             self.get_residual_matrix()
             self._forward_pre_hook_handle.remove()  # 移除钩子
@@ -88,7 +86,6 @@ class SaRAParametrization(pl.LightningModule):
         # todo check if it is need to del teh U V S
         if init_sara_weights == "svd":
                 V, S, Uh = torch.linalg.svd(weight.data, full_matrices=False)
-                V, S, Uh = torch.linalg.svd(weight.data, full_matrices=False)
                 Vr = V[:, : r]
                 Sr = S[: r]
                 Sr /= self.scaling
@@ -96,11 +93,7 @@ class SaRAParametrization(pl.LightningModule):
         elif len(init_sara_weights.split("_niter_")) == 2:           
             
                     # todo: note llama needs fp32 self.layer_weights.to(torch.float32)
-        elif len(init_sara_weights.split("_niter_")) == 2:           
-            
-                    # todo: note llama needs fp32 self.layer_weights.to(torch.float32)
                     Vr, Sr, Ur = svd_lowrank(
-                        weight.data, r, niter=int(init_sara_weights.split("_niter_")[-1])
                         weight.data, r, niter=int(init_sara_weights.split("_niter_")[-1])
                     )
                     Sr /= self.scaling
@@ -128,11 +121,7 @@ class SaRAParametrization(pl.LightningModule):
         
         resmat = resmat.to(dtype)
         
-        
-        resmat = resmat.to(dtype)
-        
         self.layer_weights.data = resmat
-        del resmat, lora_A, lora_B, vector_z, weight
         del resmat, lora_A, lora_B, vector_z, weight
         
     def _dropout(self, A):
