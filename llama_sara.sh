@@ -1,5 +1,5 @@
 #!/bin/bash
-export WANDB_MODE=offline
+# export WANDB_MODE=offline
 gpu=7
 
 # Hyper-Parameter MELoRA
@@ -31,13 +31,13 @@ run(){
   bf16=True
   fp16=False
 
-  lora_alpha="512"
+  lora_alpha="1536"
   target_name='qv'
   lora_dropout=0.05
   lora_bias=none
   cutoff_len=256
   wandb_project=sara_llama_alpaca
-  wandb_run_name=r-${rank}-4-alpha-${lora_alpha}-${target_name}-bs-${bs}-lr-${learning_rate}-len-${cutoff_len}-epochs-${num_train_epochs}-seed-${seed}
+  wandb_run_name=r-${rank}-2-alpha-${lora_alpha}-${target_name}-bs-${bs}-lr-${learning_rate}-len-${cutoff_len}-epochs-${num_train_epochs}-seed-${seed}
   echo $wandb_run_name
   exp_dir=./llama-lora/${wandb_run_name}
   mkdir -p $exp_dir
@@ -66,7 +66,7 @@ run(){
 }
 
 # run SaRA with rank 256
-run 'sara' 256
+run 'sara' 768
 
 
 
