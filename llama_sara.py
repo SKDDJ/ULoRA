@@ -5,24 +5,26 @@ from typing import List
 import fire
 import torch
 import transformers
+from transformers import TrainerCallback, TrainerState, TrainerControl
 from datasets import load_dataset
 
+import wandb
 import torch.nn as nn
 import bitsandbytes as bnb
-from peft import (
+# from peft import (
     # LoraConfig,
     # get_peft_model,
     # get_peft_model_state_dict,
     # prepare_model_for_int8_training,
-    set_peft_model_state_dict,
-)
+    # set_peft_model_state_dict,
+# )
 
 from labml.logger import inspect
 from labml import monit
 
 from functools import partial
 
-from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name
+from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
 
 
 from transformers import LlamaForCausalLM, LlamaTokenizer, set_seed
@@ -60,6 +62,33 @@ def print_vector_parameters(model):
         f"vector params: {vector_params:,d} || trainable params(wo classifier): {trainable_params-classifier_params:,d} || all params: {all_param-classifier_params:,d} || trainable%: {100 * (trainable_params-classifier_params) / (all_param-classifier_params)}"
     )
     return vector_params
+
+class FactorWeightLogCallback(TrainerCallback):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+        self.last_step = -1
+
+    def on_step_begin(self, args, state: TrainerState, control: TrainerControl, **kwargs):
+        if self.last_step >= state.global_step or state.global_step % 10 != 0:
+            return
+
+        # 记录与因子相关的参数
+        for name, param in self.model.named_parameters():
+            if 'factor' in name:
+                param_values = param.detach().flatten().cpu().numpy()
+
+                # 记录相关 statistics in wandb
+                wandb.log({
+                    f"{name}_hist": wandb.Histogram(param_values),
+                    f"{name}_min": param_values.min(),
+                    f"{name}_max": param_values.max(),
+                    f"{name}_mean": param_values.mean(),
+                    f"{name}_std": param_values.std()
+                }, step=state.global_step)
+
+        self.last_step = state.global_step
+
 
 
 
@@ -231,14 +260,13 @@ def train(
     # model, tokenizer = accelerator.prepare(model, tokenizer)
     target_modules=lora_target_modules
     with monit.section("Apply_SaRA"):
-        # 打印模型参数的名称和大小
-        for name, param in model.named_parameters():
-            print(f"{name}: {param.size()}")
+        # # 打印模型参数的名称和大小
+        # for name, param in model.named_parameters():
+        #     print(f"{name}: {param.size()}")
 
-        # 打印模型参数的名称和数据类型
-        for name, param in model.named_parameters():
-            print(f"{name}: {param.dtype}")
-        model.float()
+        # # 打印模型参数的名称和数据类型
+        # for name, param in model.named_parameters():
+        #     print(f"{name}: {param.dtype}")
         add_sara_by_name(model, target_module_names=target_modules,sara_config=sara_config)
 
         
@@ -302,8 +330,8 @@ def train(
             warmup_steps=100,
             num_train_epochs=num_epochs,
             learning_rate=learning_rate,
-            bf16=True,
-            # fp16=True,
+            bf16=bf16,
+            fp16=fp16,
             logging_steps=10,
             optim="adamw_torch",
             evaluation_strategy="steps" if val_set_size > 0 else "no",
@@ -324,16 +352,21 @@ def train(
     )
     model.config.use_cache = False
 
-    old_state_dict = model.state_dict
-    model.state_dict = (
-        lambda self, *_, **__: get_sara_state_dict(
-            self, old_state_dict()
-        )
-    ).__get__(model, type(model))
-
+    model.state_dict = sara_state_dict.__get__(model, type(model))
+    print(model.state_dict())  # 这应该输出经过 sara 处理的状态字典
+    # old_state_dict = model.state_dict
+    # model.state_dict = (
+    #     lambda self, *_, **__: get_peft_state_dict(
+    #         self, old_state_dict()
+    #     )
+    # ).__get__(model, type(model))
     if torch.__version__ >= "2" and sys.platform != "win32":
         model = torch.compile(model)
 
+    # note: we log the scaling factor using wandb
+    # 添加这个callback到你的trainer
+    trainer.add_callback(FactorWeightLogCallback(model))
+    
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     model.save_pretrained(output_dir)
