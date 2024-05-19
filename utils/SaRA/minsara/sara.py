@@ -104,7 +104,7 @@ class SaRAParametrization(pl.LightningModule):
         self.lora_A.data = lora_A
         self.lora_B.data = lora_B
         # 定义初始化方法的选项
-        init_method = 'svd'  # 可选项: 'svd', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
+        init_method = self.init_method  # 可选项: 'svd', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
 
         # 根据初始化方法选项进行不同的初始化
         if init_method == 'svd':

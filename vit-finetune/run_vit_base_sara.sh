@@ -24,7 +24,7 @@ NAME="base"
 
 # MODEL_NAME="vit-l32-224-in21k" # Assuming a placeholder name for ViT/Large
 # NAME="large"
-gpu=2
+gpu=7
 
 # SaRA specific parameters
 R=256
@@ -34,11 +34,11 @@ FULLRANK="256-1"
 LR=5e-2
 
 
-# init_method = 'svd'  # 可选项: 'svd', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
+# init_method = 'svd'  # 可选项: 'svd', 'uniform', 'normal', 'constant', 'ones', 'zeros'
 # INIT_SARA_WEIGHTS="fast_init_8"
 # init_sara_weights=fast_init_8
-INIT_METHOD="constant"
-init_method=constant
+INIT_METHOD="zeros"
+init_method=zeros
 # default cosine but fourier use linear
 LR_SCHEDULER="linear" 
 LR_SCHEDULER_NAME=linear
