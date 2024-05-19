@@ -20,7 +20,7 @@ def transpose(weight, fan_in_fan_out):
 
 
 class SaRAParametrization(pl.LightningModule):
-    def __init__(self, fan_in, fan_out, fan_in_fan_out=False, rank=4, lora_dropout_p=0.0, lora_alpha=8, layer_module=None, init_sara_weights="fast_niter_8"):
+    def __init__(self, fan_in, fan_out, fan_in_fan_out=False, rank=4, lora_dropout_p=0.0, lora_alpha=8, layer_module=None, init_sara_weights="fast_niter_8", init_method="svd" ):
         super().__init__() 
         # if weight is stored as (fan_out, fan_in), the memory layout of A & B follows (W + BA)x
         # otherwise, it's x(W + AB). This allows us to tie the weights between linear layers and embeddings
@@ -38,6 +38,7 @@ class SaRAParametrization(pl.LightningModule):
         self.scaling = lora_alpha / rank
         self.fan_in = fan_in
         self.fan_out = fan_out
+        self.init_method = init_method
         self.lora_dropout_p = lora_dropout_p
 
         # 注册一个前向传播前的钩子，以自动更新权重一次
@@ -57,7 +58,7 @@ class SaRAParametrization(pl.LightningModule):
             # note: because we may use weight tying, so we have to define the lora_X as nn.Parameter not the nn.Linear
             self.lora_A = nn.Parameter(torch.zeros(self.swap((self.rank, self.fan_in))))
             self.lora_B = nn.Parameter(torch.zeros(self.swap((self.fan_out, self.rank))))
-            self.vector_z = nn.Parameter(self.rank * torch.ones(1))
+            self.vector_z = nn.Parameter(torch.ones(self.rank))
             #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
             self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
             
@@ -91,8 +92,6 @@ class SaRAParametrization(pl.LightningModule):
                 Sr /= self.scaling
                 Uhr = Uh[: r]
         elif len(init_sara_weights.split("_niter_")) == 2:           
-            
-                    # todo: note llama needs fp32 self.layer_weights.to(torch.float32)
                     Vr, Sr, Ur = svd_lowrank(
                         weight.data, r, niter=int(init_sara_weights.split("_niter_")[-1])
                     )
@@ -102,10 +101,39 @@ class SaRAParametrization(pl.LightningModule):
         lora_A = Uhr
         lora_B = Vr
         vector_z = Sr
-        # nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
         self.lora_A.data = lora_A
         self.lora_B.data = lora_B
-        self.vector_z.data = vector_z   
+        # 定义初始化方法的选项
+        init_method = 'svd'  # 可选项: 'svd', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
+
+        # 根据初始化方法选项进行不同的初始化
+        if init_method == 'svd':
+            self.vector_z.data = vector_z
+
+        # elif init_method == 'kaiming_normal':
+        #     nn.init.kaiming_normal_(self.vector_z, mode='fan_in', nonlinearity='relu')
+
+        # elif init_method == 'kaiming_uniform':
+        #     nn.init.kaiming_uniform_(self.vector_z, a=math.sqrt(5))
+
+        elif init_method == 'uniform':
+            nn.init.uniform_(self.vector_z, a=-1.0, b=1.0)
+
+        elif init_method == 'normal':
+            nn.init.normal_(self.vector_z, mean=0.0, std=1.0)
+
+        elif init_method == 'constant':
+            nn.init.constant_(self.vector_z, 3.14)
+
+        elif init_method == 'ones':
+            nn.init.ones_(self.vector_z)
+
+        elif init_method == 'zeros':
+            nn.init.zeros_(self.vector_z)
+
+        else:
+            raise ValueError(f"Unknown initialization method: {init_method}")
+        
         
         # drop out which won't be used 
         self.lora_dropout = nn.Dropout(p=self.lora_dropout_p) if self.lora_dropout_p > 0 else lambda x: x
@@ -141,14 +169,14 @@ class SaRAParametrization(pl.LightningModule):
         return self.forward_fn(X)
 
     @classmethod
-    def from_linear(cls, layer, rank=4, lora_dropout_p=0.0, lora_alpha=1):
+    def from_linear(cls, layer, rank=4, lora_dropout_p=0.0, lora_alpha=1, init_sara_weights="fast_niter_8", init_method="svd"):
         fan_out, fan_in = layer.weight.shape        
         return cls(
-            fan_in, fan_out, fan_in_fan_out=False, rank=rank, lora_dropout_p=lora_dropout_p, lora_alpha=lora_alpha, layer_module=layer
+            fan_in, fan_out, fan_in_fan_out=False, rank=rank, lora_dropout_p=lora_dropout_p, lora_alpha=lora_alpha, layer_module=layer, init_sara_weights="fast_niter_8", init_method=init_method 
         )
 
     @classmethod
-    def from_conv2d(cls, layer, rank=4, lora_dropout_p=0.0, lora_alpha=1):
+    def from_conv2d(cls, layer, rank=4, lora_dropout_p=0.0, lora_alpha=1, init_sara_weights="fast_niter_8", init_method="svd"):
         fan_out, fan_in = layer.weight.view(layer.weight.shape[0], -1).shape
         # layer_weights = layer
         return cls(
@@ -156,7 +184,7 @@ class SaRAParametrization(pl.LightningModule):
         )
 
     @classmethod
-    def from_embedding(cls, layer, rank=4, lora_dropout_p=0.0, lora_alpha=1):
+    def from_embedding(cls, layer, rank=4, lora_dropout_p=0.0, lora_alpha=1, init_sara_weights="fast_niter_8", init_method="svd"):
         fan_in, fan_out = layer.weight.shape
         return cls(
             fan_in, fan_out, fan_in_fan_out=True, rank=rank, lora_dropout_p=lora_dropout_p, lora_alpha=lora_alpha, layer_module=layer

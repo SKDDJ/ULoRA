@@ -13,39 +13,45 @@ date
 # | flowers102| Flowers102      |
 # | eurosat  | EuroSAT          |
 
-
-
-# DATASETS=("cifar10" "cifar100" "dtd" "cars" "aircraft" "pets37" "flowers102" "eurosat")
+DATASETS=("cifar10" "cifar100" "dtd" "aircraft"  "eurosat" "pets37" "flowers102" "cars")
+# DATASETS=("cifar10")
 # DATASETS=("aircraft" "eurosat" "pets37")
-DATASETS=( "eurosat")
-# DATASETS=( "aircraft"  "eurosat")
+
 
 MODEL_NAME="vit-b16-224-in21k"
 NAME="base"
 
+
 # MODEL_NAME="vit-l32-224-in21k" # Assuming a placeholder name for ViT/Large
 # NAME="large"
+gpu=2
 
 # SaRA specific parameters
-R=768
-ALPHA=768
-LR=3e-2
+R=256
+ALPHA=256
+FULLRANK="256-1"
+
+LR=5e-2
+
+
+# init_method = 'svd'  # 可选项: 'svd', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
+# INIT_SARA_WEIGHTS="fast_init_8"
+# init_sara_weights=fast_init_8
+INIT_METHOD="constant"
+init_method=constant
 # default cosine but fourier use linear
 LR_SCHEDULER="linear" 
 LR_SCHEDULER_NAME=linear
 
-FULLRANK="768-1"
-
 SEED=42
-gpu=3
 
 for DATASET in "${DATASETS[@]}"; do 
     echo "Evaluating on ${DATASET} with ${MODEL_NAME}..."
     CONFIG="/root/shiym_proj/Sara/vit-finetune/configs/sara/${DATASET}.yaml"
     CUDA_VISIBLE_DEVICES=$gpu python main.py fit --config $CONFIG --seed_everything $SEED --trainer.accelerator gpu --trainer.devices=[0] --trainer.precision 16-mixed \
-        --trainer.max_steps 5000 --trainer.logger.name $FULLRANK-$NAME-$DATASET-R-$R-LR-$LR-SCHEDULER-$$LR_SCHEDULER_NAME --model.warmup_steps 500 --model.lr $LR --model.scheduler $LR_SCHEDULER \
+        --trainer.max_epochs 10 --trainer.logger.name INIT-$INIT_METHOD-$FULLRANK-$NAME-$DATASET-R-$R-LR-$LR-SCHEDULER-$LR_SCHEDULER_NAME --model.warmup_steps 30 --model.lr $LR --model.scheduler $LR_SCHEDULER \
       --data.batch_size 128 --data.dataset $DATASET --data.workers 4 --model.model_name $MODEL_NAME \
-      --model.lora_r $R --model.lora_alpha $ALPHA  > ./logs/515-sc2/vit_base_${DATASET}.log 2>&1
+      --model.lora_r $R --model.lora_alpha $ALPHA --model.init_method $INIT_METHOD > ./logs/519-${INIT_METHOD}/vit_base_${DATASET}.log 2>&1
     
     echo "ViT/Base model with LoRA fine-tuning on $DATASET completed." >> vit_base_output.log
 done

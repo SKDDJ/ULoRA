@@ -77,9 +77,9 @@ DATASET_DICT = {
         100,
     ],
     "cars": [
-        partial(StanfordCars, split="train", download=True),
-        partial(StanfordCars, split="test", download=True),
-        partial(StanfordCars, split="test", download=True),
+        partial(StanfordCars,split="train", download=True),
+        partial(StanfordCars,split="test", download=True),
+        partial(StanfordCars,split="test", download=True),
         196,
     ],
 }

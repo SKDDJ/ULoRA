@@ -112,6 +112,8 @@ class ClassificationModel(pl.LightningModule):
         training_mode: str = "full",
         lora_r: int = 16,
         lora_alpha: int = 16,
+        init_sara_weights: str = "fast_init_8",
+        init_method: str = "svd",
         lora_target_modules: List[str] = ["query", "value"],
         lora_dropout: float = 0.0,
         lora_bias: str = "none",
@@ -164,6 +166,8 @@ class ClassificationModel(pl.LightningModule):
         self.training_mode = training_mode
         self.lora_r = lora_r
         self.lora_alpha = lora_alpha
+        self.init_sara_weights = init_sara_weights
+        self.init_method = init_method
         self.lora_target_modules = lora_target_modules
         self.lora_dropout = lora_dropout
         self.lora_bias = lora_bias
@@ -217,7 +221,7 @@ class ClassificationModel(pl.LightningModule):
             print(f"Using sara, sara_alpha :{self.lora_alpha}")
             sara_config = {
                 nn.Linear: {
-                    "weight": partial(SaRAParametrization.from_linear, rank=self.lora_r, lora_dropout_p=self.lora_dropout, lora_alpha=self.lora_alpha)
+                    "weight": partial(SaRAParametrization.from_linear, rank=self.lora_r, lora_dropout_p=self.lora_dropout, lora_alpha=self.lora_alpha,init_sara_weights=self.init_sara_weights, init_method=self.init_method),
                 },
             }        
             # model, tokenizer = accelerator.prepare(model, tokenizer)
