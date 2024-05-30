@@ -18,8 +18,8 @@ date
 
 
 
-DATASETS=("cifar10" "cifar100" "dtd" "cars" "aircraft" "pets37" "flowers102" "eurosat")
-# DATASETS=("cifar10")
+# DATASETS=("cifar10" "cifar100" "dtd" "cars" "aircraft" "pets37" "flowers102" "eurosat")
+DATASETS=("aircraft")
 # SaRA specific parameters
 gpu=6
 R=768

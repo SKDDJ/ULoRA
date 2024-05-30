@@ -230,13 +230,58 @@ class ClassificationModel(pl.LightningModule):
             with monit.section("Apply_SaRA"):
                 # # 打印模型参数的名称和大小
                 # for name, param in self.net.named_parameters():
-                #     print(f"{name}: {param.size()}")
+                    # print(f"{name}: {param.size()}")
                 # # 打印模型参数的名称和数据类型
                 # for name, param in self.net.named_parameters():
                 #     print(f"{name}: {param.dtype}")
+                
+                
+                # checkpoint_path="/root/shiym_proj/Sara/vit-finetune/output/full_fine_tuning_aircraft/version_2/checkpoints/best-step-step=240-val_acc=0.6061.ckpt"
+                # # checkpoint_path="/root/shiym_proj/Sara/vit-finetune/output/full_fine_tuning_flowers102/version_3/checkpoints/best-step-step=26-val_acc=0.9843.ckpt"
+                # # 加载完整的检查点
+                # checkpoint = torch.load(checkpoint_path)
+                # # 提取状态字典
+                # state_dict_to_save = checkpoint['state_dict']
+                
+                # # 载入预训练模型的 state_dict
+                # pretrained_dict = {k.replace('net.', ''): v for k, v in state_dict_to_save.items()}
+                # # 如果只需要加载特定层
+                # # trimmed_pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model.state_dict()}
+
+                # # 加载调整后的权重
+                # _ = self.net.load_state_dict(pretrained_dict, strict=True)
+                
+
+                # state_dict_to_save = torch.load(lora_path)
+                # _ = self.net.load_state_dict(state_dict_to_save, strict=True)
+
                 add_sara_by_name(self.net, target_module_names=target_modules,sara_config=sara_config)
                 only_train_vector_params(self.net)
                 print_vector_parameters(self.net)
+
+                # 创建一个文件夹来保存所有的vector_z数据
+                # import os
+                # save_dir = "/root/shiym_proj/Sara/vit-finetune/vectors/vector_z_aircraft_full"
+                # os.makedirs(save_dir, exist_ok=True)
+                # count_q = 0  
+                # count_v = 0  
+                # # 遍历每个层的参数，并保存 `vector_z` 到本地文件
+                # for idx, (name, param) in enumerate(self.net.named_parameters()):
+                #     # 假设 `vector_z` 是某种方式从 `param` 中获得的
+                #     # 你需要根据实际情况提取 `vector_z`
+                #     if 'vector_z' in name:
+                #         vector_z = param  # 这里假设 `param` 就是 `vector_z`
+                #         if 'query' in name:
+                #             count_q += 1
+                #             save_path = os.path.join(save_dir, f"layer_{count_q}_vector_z_query.pt")
+                #             torch.save(vector_z, save_path)
+                #             print(f"Saved vector_z_key of layer {count_q} to {save_path}")
+                #         else:
+                #             count_v += 1
+                #             save_path = os.path.join(save_dir, f"layer_{count_v}_vector_z_value.pt")
+                #             torch.save(vector_z, save_path)
+                #             print(f"Saved vector_z_value of layer {count_v} to {save_path}")
+                # exit()
         elif self.training_mode == "lora":
             # Wrap in LoRA model
             config = LoraConfig(

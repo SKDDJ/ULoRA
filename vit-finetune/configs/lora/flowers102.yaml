@@ -7,7 +7,7 @@ trainer:
     class_path: pytorch_lightning.loggers.CSVLogger
     init_args:
       save_dir: output
-      name: full_fine_tuning_flowers102
+      name: lora_fine_tuning_flowers102
   # max_steps: 1000
   max_epochs: 10
   check_val_every_n_epoch: 1
@@ -16,12 +16,15 @@ trainer:
 
 model:
   model_name: vit-b16-224-in21k
-  training_mode: full
-  optimizer: adamw
-  lr: 0.03
-  weight_decay: 3e-4
-  scheduler: linear
+  training_mode: lora
+  optimizer: sgd
+  lr: 0.05
+  momentum: 0.9
+  weight_decay: 0.0
+  scheduler: cosine
   warmup_steps: 30
+  lora_r: 16
+  lora_alpha: 32
 data:
   dataset: flowers102
   root: data/
@@ -33,3 +36,4 @@ model_checkpoint:
   monitor: val_acc
   save_last: true
   mode: max
+
