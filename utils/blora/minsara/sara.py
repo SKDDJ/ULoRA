@@ -26,16 +26,15 @@ class SaRAParametrization(pl.LightningModule):
         # otherwise, it's x(W + AB). This allows us to tie the weights between linear layers and embeddings
         # 假设layer_module是一个已存在的层，我们用它的权重尺寸初始化layer_weights
         layer_weights = layer_module.weight
-        
         self.layer_weights = layer_weights
         del layer_weights
-        
         self.layer_weights.data = layer_module.weight.data
-
         self.swap = (lambda x: (x[1], x[0])) if fan_in_fan_out else (lambda x: x)
         
         self.lora_alpha, self.rank = lora_alpha, rank
         self.scaling = lora_alpha / rank
+        self.update_ratio = 0.5 # todo: test if it is not 0.5
+        
         self.fan_in = fan_in
         self.fan_out = fan_out
         self.init_method = init_method
@@ -47,8 +46,6 @@ class SaRAParametrization(pl.LightningModule):
         self._updated = False
         # svd init
         self.init_sara_weights = init_sara_weights
-
-        # todo: test removing the code below
         self.forward_fn = self.sara_forward
         
 
@@ -58,10 +55,7 @@ class SaRAParametrization(pl.LightningModule):
             # note: because we may use weight tying, so we have to define the lora_X as nn.Parameter not the nn.Linear
             self.lora_A = nn.Parameter(torch.zeros(self.swap((self.rank, self.fan_in))))
             self.lora_B = nn.Parameter(torch.zeros(self.swap((self.fan_out, self.rank))))
-            self.vector_z = nn.Parameter(torch.ones(self.rank))
-            #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
-            self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
-            
+            self.prev_lora_B = nn.Parameter(torch.zeros(self.swap((self.fan_out, self.rank))))
             self.get_residual_matrix()
             self._forward_pre_hook_handle.remove()  # 移除钩子
             self._updated = True  # 更新标记，防止再次执
@@ -70,11 +64,8 @@ class SaRAParametrization(pl.LightningModule):
     def get_residual_matrix(self):
         r = self.rank
         init_sara_weights = self.init_sara_weights
-        
         weight = self.layer_weights 
         dtype = weight.dtype
-        # print("weight dtype", dtype)
-        
         if dtype not in [torch.float32, torch.float16, torch.bfloat16]:
             raise TypeError(
                 "Please initialize PiSSA under float32, float16, or bfloat16. "
@@ -82,8 +73,6 @@ class SaRAParametrization(pl.LightningModule):
             )
         weight = weight.to(torch.float32)
         # print("new weight dtype", weight.dtype)
-
-        
         # todo check if it is need to del teh U V S
         if init_sara_weights == "svd":
                 V, S, Uh = torch.linalg.svd(weight.data, full_matrices=False)
@@ -98,86 +87,54 @@ class SaRAParametrization(pl.LightningModule):
                     Sr /= self.scaling
                     Uhr = Ur.t()
             
-        lora_A = Uhr
+        lora_A = torch.diag(Sr)@Uhr
         lora_B = Vr
-        vector_z = Sr
+
         self.lora_A.data = lora_A
         self.lora_B.data = lora_B
-        # 定义初始化方法的选项
-        init_method = self.init_method  # 可选项: 'svd', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
-
-        # 根据初始化方法选项进行不同的初始化
-        if init_method == 'svd':
-            # print(vector_z)
-            # print(vector_z.shape)
-            # print(vector_z.item())
-            self.vector_z.data = vector_z
-
-        # elif init_method == 'kaiming_normal':
-        #     nn.init.kaiming_normal_(self.vector_z, mode='fan_in', nonlinearity='relu')
-
-        # elif init_method == 'kaiming_uniform':
-        #     nn.init.kaiming_uniform_(self.vector_z, a=math.sqrt(5))
-
-        elif init_method == 'uniform':
-            mean_value = self.vector_z.mean().item()
-            print(f"self.vector_z mean is {mean_value}")
-            nn.init.uniform_(self.vector_z, a=-mean_value/2, b=mean_value/2)
-            # nn.init.uniform_(self.vector_z, a=-1, b=1)
-
-        elif init_method == 'normal':
-            mean_value = self.vector_z.mean().item()
-            std_value = self.vector_z.std().item()
-            print(f"self.vector_z mean is {mean_value}")
-            print(f"self.vector_z std is {std_value}")
-            nn.init.normal_(self.vector_z, mean=mean_value, std=std_value)
-            # nn.init.normal_(self.vector_z, mean=0.0, std=1.0)
-
-        elif init_method == 'constant':
-            mean_value = self.vector_z.mean().item()
-            print(f"self.vector_z mean is {mean_value}")
-            nn.init.constant_(self.vector_z, mean_value)
-            # nn.init.constant_(self.vector_z, 3.14)
-
-        elif init_method == 'ones':
-            nn.init.ones_(self.vector_z)
-
-        elif init_method == 'zeros':
-            nn.init.zeros_(self.vector_z)
-
-        else:
-            raise ValueError(f"Unknown initialization method: {init_method}")
+        self.prev_lora_B.data = lora_B
         
+        self.lora_A.requires_grad = False  # Freeze lora_A gradients
+        self.prev_lora_B.requires_grad = False  # Freeze prev_lora_B gradients
+
         
         # drop out which won't be used 
         self.lora_dropout = nn.Dropout(p=self.lora_dropout_p) if self.lora_dropout_p > 0 else lambda x: x
         self.dropout_fn = self._dropout if self.lora_dropout_p > 0 else lambda x: x
         self.register_buffer("lora_dropout_mask", torch.ones(self.swap((1, self.fan_in)), dtype=self.lora_A.dtype))
 
-        resmat = self.layer_weights - self.scaling * lora_B @ torch.diag(vector_z) @lora_A 
-        
-        resmat = resmat.to(dtype)
-        
-        self.layer_weights.data = resmat
-        del resmat, lora_A, lora_B, vector_z, weight
+        del  lora_A, lora_B,  weight
         
     def _dropout(self, A):
         # to mimic the original implementation: A @ dropout(x), we do (A * dropout(ones)) @ x
         return A * self.lora_dropout(self.lora_dropout_mask)
   
-    # @torch.no_grad() # 这个地方的取消梯度很重要？ 好吧，非常他妈的重要！！！
-    # 这里的逻辑有问题，干什么要每次都要重复加上这个结果呢，只需要最后加上就好了，我相当于反复的重复的加了SVD的值
     def sara_forward(self, X):
         torch_X_dtype = X.dtype #16
+        # print(f"self.lora_B: {self.lora_B}")
+        # print("***"*20)
+        # print(f"self.prev_lora_B: {self.prev_lora_B}")
+        # print("=="*20)
         
-        diag_z = torch.diag(F.relu(self.vector_z)) # 32
-        # print("self.scaling_factor init", self.scaling_factor)
-        result = self.scaling_factor * self.lora_B @ diag_z @ self.lora_A
+        delta_w = (self.lora_B - self.prev_lora_B) @ self.lora_A
+        # print(f"delta_w: {delta_w}")
+        
+        delta_w = self.scaling * delta_w
+
+        delta_w = delta_w.to(torch_X_dtype)
+        self.prev_lora_B.data = self.lora_B.data.clone()  # Update prev_lora_B
+
+
+        result = self.update_ratio * (X + delta_w) + (1 - self.update_ratio) * (self.lora_B @ self.lora_A)
         
         result = result.to(torch_X_dtype) # 32 -> 16
-        del diag_z
         
-        return X + result
+        return result
+        # delta_w = (self.lora_B - self.prev_lora_B) @ self.lora_A
+        # result = self.scaling * self.lora_B @ diag_z @ self.lora_A
+        # result = result.to(torch_X_dtype) # 32 -> 16
+        # del diag_z
+        # return X + result
     
     def forward(self, X):
         return self.forward_fn(X)

@@ -66,6 +66,9 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+vit-finetune/plot/*
+
+
 # Flask stuff:
 instance/
 .webassets-cache
