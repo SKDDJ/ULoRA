@@ -40,6 +40,9 @@ pip-log.txt
 pip-delete-this-directory.txt
 wandb/
 roberta_glue_sara_reproduce/
+vit-finetune/lr-ablation/*
+finance.ipynb
+
 utils/LoRA/examples/
 utils/LoRA/
 # Unit test / coverage reports
