@@ -26,7 +26,23 @@ import sys
 sys.path.append('/root/shiym_proj/Sara/')
 
 from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name
+    
+def instrinsic_rank(D, threshold=1e-5):
+    # Determine the rank by counting how many elements are greater than 1e-6
+    # Define the threshold
+    threshold = threshold
+    # Calculate the rank based on the threshold
+    # need fine the torch api to get the base layer of D tensor
+    rank = torch.sum(torch.abs(D) >= threshold).item()
+    # print(f"The instrinsic rank of the matrix is: {rank}")
+    return rank
 
+def print_layer_ranks(model, threshold=1e-5):
+    for name, param in model.named_parameters():
+        if 'vector_z' in name:
+            rank = instrinsic_rank(param, threshold)
+            print(f"The intrinsic rank of the layer {name} is: {rank}")
+            
 
 def print_vector_parameters(model):
     r"""
@@ -259,6 +275,7 @@ class ClassificationModel(pl.LightningModule):
                 only_train_vector_params(self.net)
                 print_vector_parameters(self.net)
 
+                print_layer_ranks(model=self.net, threshold=1e-5)
                 # 创建一个文件夹来保存所有的vector_z数据
                 # import os
                 # save_dir = "/root/shiym_proj/Sara/vit-finetune/vectors/vector_z_aircraft_full"
@@ -430,9 +447,30 @@ class ClassificationModel(pl.LightningModule):
                 momentum=self.momentum,
                 weight_decay=self.weight_decay,
             )
+        elif self.optimizer == "prodigy":
+            try:
+                import prodigyopt
+            except ImportError:
+                raise ImportError("To use Prodigy, please install the prodigyopt library: `pip install prodigyopt`")
+
+            optimizer_class = prodigyopt.Prodigy
+
+            if self.lr <= 0.1:
+                print("Using Prodigy with a learning rate less than 0.1")
+            optimizer = optimizer_class(
+                self.net.parameters(),
+                lr=self.lr,
+                betas=(0.9, 0.99),
+                beta3=None,
+                weight_decay=self.weight_decay,
+                eps=1e-08,
+                decouple=True,
+                use_bias_correction=True,
+                safeguard_warmup=True,
+            )
         else:
             raise ValueError(
-                f"{self.optimizer} is not an available optimizer. Should be one of ['adam', 'adamw', 'sgd']"
+                f"{self.optimizer} is not an available optimizer. Should be one of ['adam', 'adamw', 'sgd', 'prodigy']"
             )
 
         # Initialize learning rate scheduler
