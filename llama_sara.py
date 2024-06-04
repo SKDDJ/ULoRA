@@ -7,22 +7,18 @@ import torch
 import transformers
 from transformers import TrainerCallback, TrainerState, TrainerControl
 from datasets import load_dataset
-
+from accelerate import Accelerator
+from accelerate.logging import get_logger
+from accelerate.utils import set_seed
 import wandb
 import torch.nn as nn
 import bitsandbytes as bnb
-# from peft import (
-    # LoraConfig,
-    # get_peft_model,
-    # get_peft_model_state_dict,
-    # prepare_model_for_int8_training,
-    # set_peft_model_state_dict,
-# )
 
 from labml.logger import inspect
 from labml import monit
 
 from functools import partial
+
 
 from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
 
@@ -180,8 +176,16 @@ def train(
     assert (
         base_model
     ), "Please specify a --base_model, e.g. --base_model='huggyllama/llama-7b'"
+
+
     gradient_accumulation_steps = batch_size // micro_batch_size
 
+    # accelerator = Accelerator(
+    #     gradient_accumulation_steps=gradient_accumulation_steps,
+    #     log_with="wandb",
+    #     project_dir=output_dir,
+    # )
+    
     prompter = Prompter(prompt_template_name)
 
     device_map = "auto"
@@ -203,20 +207,21 @@ def train(
     if len(wandb_log_model) > 0:
         os.environ["WANDB_LOG_MODEL"] = wandb_log_model
     set_seed(seed)
-    model = LlamaForCausalLM.from_pretrained(
-        base_model,
-        # load_in_8bit=True,
-        torch_dtype=torch.float16,
-        device_map=device_map,
-        use_safetensors=True,
-    )
+    with monit.section("loading llama..."):
+        model = LlamaForCausalLM.from_pretrained(
+            base_model,
+            # load_in_8bit=True,
+            torch_dtype=torch.float16,
+            device_map=device_map,
+            use_safetensors=True,
+        )
+    with monit.section("loading tokenizer..."):
+        tokenizer = LlamaTokenizer.from_pretrained(base_model)
 
-    tokenizer = LlamaTokenizer.from_pretrained(base_model)
-
-    tokenizer.pad_token_id = (
-        0  # unk. we want this to be different from the eos token
-    )
-    tokenizer.padding_side = "left"  # Allow batched inference
+        tokenizer.pad_token_id = (
+            0  # unk. we want this to be different from the eos token
+        )
+        tokenizer.padding_side = "left"  # Allow batched inference
 
     def tokenize(prompt, add_eos_token=True):
         # there's probably a way to do this with the tokenizer settings
@@ -270,6 +275,7 @@ def train(
 
     print(f"Using sara, sara_r :{lora_r}")
     print(f"Using sara, sara_alpha :{lora_alpha}")
+    print(f"target modules :{lora_target_modules}")
     sara_config = {
         nn.Linear: {
             "weight": partial(SaRAParametrization.from_linear, rank=lora_r, lora_dropout_p=lora_dropout, lora_alpha=lora_alpha)
@@ -280,8 +286,8 @@ def train(
     target_modules=lora_target_modules
     with monit.section("Apply_SaRA"):
         # 打印模型参数的名称和大小
-        for name, param in model.named_parameters():
-            print(f"{name}: {param.size()}")
+        # for name, param in model.named_parameters():
+        #     print(f"{name}: {param.size()}")
 
         # # 打印模型参数的名称和数据类型
         # for name, param in model.named_parameters():
@@ -372,7 +378,8 @@ def train(
     model.config.use_cache = False
 
     model.state_dict = sara_state_dict.__get__(model, type(model))
-    print(model.state_dict())  # 这应该输出经过 sara 处理的状态字典
+    
+    # print(model.state_dict())  # 这应该输出经过 sara 处理的状态字典
     # old_state_dict = model.state_dict
     # model.state_dict = (
     #     lambda self, *_, **__: get_peft_state_dict(

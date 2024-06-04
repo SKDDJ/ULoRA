@@ -1,7 +1,7 @@
 #!/bin/bash
 # export WANDB_MODE=offline
-gpu=7
 
+gpu=0
 # Hyper-Parameter MELoRA
 # Max sequence length 256
 # Batch size 128
@@ -21,10 +21,11 @@ gpu=7
 run(){
   # bs=128
   # micro_bs=8
-  bs=128
-  micro_bs=8 # per device batch size
-  learning_rate='3e-2'
-  num_train_epochs=3
+  precision='bf16'
+  bs=16
+  micro_bs=4 # per device batch size
+  learning_rate='1e-2'
+  num_train_epochs=30
   mode=$1
   rank=$2
   seed=42
@@ -32,17 +33,16 @@ run(){
   fp16=False
 
   lora_alpha="1536"
-  target_name='qv'
-  lora_dropout=0.05
+  target_name='qkvout'
+  lora_dropout=0.05 # default 0.05
   lora_bias=none
   cutoff_len=256
-  wandb_project=sara_llama_alpaca
-  wandb_run_name=r-${rank}-2-alpha-${lora_alpha}-${target_name}-bs-${bs}-lr-${learning_rate}-len-${cutoff_len}-epochs-${num_train_epochs}-seed-${seed}
+  wandb_project=528-lr-llama-1536
+  wandb_run_name=1536-bcz4no1-lr-${learning_rate}-mbs-${micro_bs}-r-${rank}-1-alpha-${lora_alpha}-${target_name}-bs-${bs}-len-${cutoff_len}-epochs-${num_train_epochs}-seed-${seed}
   echo $wandb_run_name
   exp_dir=./llama-lora/${wandb_run_name}
   mkdir -p $exp_dir
-
-
+  #  --lora_target_modules='[q_proj,v_proj]' 
     # --lora_target_modules='[q_proj, o_proj, k_proj, v_proj, gate_proj, up_proj, down_proj]' \
   CUDA_VISIBLE_DEVICES=$gpu python llama_sara.py \
     --base_model=/root/shiym_proj/Sara/models/llama2_hf \
@@ -55,7 +55,7 @@ run(){
     --lora_r=$rank \
     --lora_alpha=$lora_alpha \
     --lora_dropout=$lora_dropout \
-    --lora_target_modules='[q_proj,v_proj]' \
+    --lora_target_modules='[q_proj, o_proj, k_proj, v_proj]' \
     --batch_size=$bs \
     --micro_batch_size=$micro_bs \
     --num_epochs=$num_train_epochs \
@@ -66,11 +66,4 @@ run(){
 }
 
 # run SaRA with rank 256
-run 'sara' 768
-
-
-
-
-
-
-
+run 'sara' 1536

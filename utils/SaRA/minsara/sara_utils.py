@@ -17,6 +17,47 @@ disable_sara = lambda model: model.apply(apply_to_sara(lambda x: x.disable_sara(
 
 
 # ------------------- helper function for collecting parameters for training/saving -------------------
+def print_model_shapes(model):                    
+    # 打印模型参数的名称和大小
+    for name, param in model.named_parameters():
+        print(f"{name}: {param.size()}")
+    # 打印模型参数的名称和数据类型
+    for name, param in model.named_parameters():
+        print(f"{name}: {param.dtype}")
+
+def print_vector_parameters(model):
+    classifier_params = 0
+    trainable_params = 0
+    vector_params = 0
+    all_param = 0
+    for n, param in model.named_parameters():
+        num_params = param.numel() 
+        all_param += num_params
+        if 'original' in n:
+            # print(f"{n} : {num_params:,d}\n")
+            continue
+        if param.requires_grad:
+            if 'classifier' in n:
+                classifier_params += num_params
+            trainable_params += num_params
+            if "vector_z" in n:
+                vector_params += num_params
+        # print(f"{n} : {num_params:,d}\n")
+    print(
+        f"vector params: {vector_params:,d} || trainable params: {trainable_params:,d} || all params: {all_param:,d} || trainable%: {100 * trainable_params / all_param}"
+    )
+    print(
+        f"vector params: {vector_params:,d} || trainable params(wo classifier): {trainable_params-classifier_params:,d} || all params: {all_param-classifier_params:,d} || trainable%: {100 * (trainable_params-classifier_params) / (all_param-classifier_params)}"
+    )
+    return vector_params
+
+def mark_only_sara_as_trainable(model):
+    # 将除Sara之外的参数设为不需要梯度
+    for param in model.parameters():
+        param.requires_grad = False
+    # 将Sara参数设为需要梯度
+    for param in get_sara_params(model):
+        param.requires_grad = True
 
 
 def name_is_sara(name):
