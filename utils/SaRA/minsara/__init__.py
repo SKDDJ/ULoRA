@@ -7,6 +7,8 @@ from minsara.sara_utils import (
     get_sara_params,
     get_sara_state_dict,
     name_is_sara,
-    sara_state_dict
-    
+    sara_state_dict,
+    mark_only_sara_as_trainable,
+    print_vector_parameters,
+    print_model_shapes
 )

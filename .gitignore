@@ -8,6 +8,9 @@ __pycache__/
 
 # Distribution / packaging
 utils/SaRA/SaRA.egg-info/
+instruct-eval-melora/data/*
+peft/examples/lora_dreambooth/wandb/*
+diffusers/*
 
 .Python
 build/
@@ -147,6 +150,11 @@ dmypy.json
 .idea/
 
 # Data & Models
+*.csv
+*.png
+*.ckpt 
+*.safetensors
+*.pt
 *.h5
 *.tar
 *.tar.gz
