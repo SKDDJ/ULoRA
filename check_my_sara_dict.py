@@ -1,7 +1,7 @@
 from safetensors import safe_open
 
 # Specify the path to your .safetensors file
-file_path = "/root/shiym_proj/Sara/llama-lora/r-128-4-alpha-512-qv-bs-128-lr-3e-2-len-256-epochs-3-seed-42/model/model.safetensors"
+file_path = "/home/yimingshi/shiym_proj/Sarallama-lora/r-128-4-alpha-512-qv-bs-128-lr-3e-2-len-256-epochs-3-seed-42/model/model.safetensors"
 
 # Read the .safetensors file
 tensors = {}

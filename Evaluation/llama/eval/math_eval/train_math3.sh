@@ -2,9 +2,9 @@
 
 gpu=3
 
-BASE_MODEL=/root/shiym_proj/Sara/models/llama3_hf
-OUTPUT=/root/shiym_proj/Sara/Evaluation/llama/math_output
-ADAPTER=/root/shiym_proj/Sara/Evaluation/llama/math_output
+BASE_MODEL=Shiym/llama3-8B
+OUTPUT=/home/yimingshi/shiym_proj/SaraEvaluation/llama/math_output
+ADAPTER=/home/yimingshi/shiym_proj/SaraEvaluation/llama/math_output
 
 R=128
 

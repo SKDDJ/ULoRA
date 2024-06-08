@@ -57,7 +57,7 @@ from labml import monit
 from functools import partial
 
 import sys
-sys.path.append('/root/shiym_proj/Sara/')
+sys.path.append('/home/yimingshi/shiym_proj/Sara')
 
 from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
 

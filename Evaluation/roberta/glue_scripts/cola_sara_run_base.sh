@@ -21,7 +21,7 @@ declare -A metrics=(["mnli"]="accuracy" ["mrpc"]="accuracy" ["qnli"]="accuracy" 
 export WANDB_MODE=offline
 
 # SPECIFY THE DIRECTORIES
-# exp_dir="/root/shiym_proj/Sara/logs/"
+# exp_dir="/home/yimingshi/shiym_proj/Saralogs/"
 
 # Experiment variables
 rank=8

@@ -28,7 +28,7 @@ from labml import monit
 from functools import partial
 
 import sys
-sys.path.append('/root/shiym_proj/Sara/')
+sys.path.append('/home/yimingshi/shiym_proj/Sara')
 
 from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
 
@@ -40,7 +40,7 @@ from transformers import LlamaForCausalLM, LlamaTokenizer, set_seed
 
 
 # Specify the path to your .safetensors file
-file_path = "/root/shiym_proj/Sara/llama-lora/r-128-4-alpha-512-qv-bs-128-lr-3e-2-len-256-epochs-3-seed-42/model/model.safetensors"
+file_path = "/home/yimingshi/shiym_proj/Sarallama-lora/r-128-4-alpha-512-qv-bs-128-lr-3e-2-len-256-epochs-3-seed-42/model/model.safetensors"
 
 # Read the .safetensors file
 state_dict_to_save = {}
@@ -55,7 +55,7 @@ for key, tensor in state_dict_to_save.items():
     
     
 
-base_model = "/root/shiym_proj/Sara/models/llama2_hf"
+base_model = "Shiym/llama2-7B"
 device_map = "auto"
 
 lora_r = 128

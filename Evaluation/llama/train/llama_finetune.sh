@@ -23,7 +23,7 @@ run(){
   mkdir -p $exp_dir
 
   CUDA_VISIBLE_DEVICES=$gpu python llama_finetune.py \
-    --base_model=/root/shiym_proj/Sara/models/llama2_hf \
+    --base_model=Shiym/llama2-7B \
     --cutoff_len=$cutoff_len \
     --mode=$mode \
     --seed=$seed \

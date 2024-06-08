@@ -10,8 +10,8 @@ echo "Starting Evaluations..."
 date
 
 gpu=4
-MODEL_PATH="/root/shiym_proj/Sara/models/llama2_hf"
-ADAPTER="/root/shiym_proj/Sara/llama-lora"
+MODEL_PATH="Shiym/llama2-7B"
+ADAPTER="/home/yimingshi/shiym_proj/Sara/llama-lora"
 OUTPUT="output/lora-llama-2-7b-r128"
 R=1024
 

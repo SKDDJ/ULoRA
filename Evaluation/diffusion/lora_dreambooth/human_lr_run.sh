@@ -31,7 +31,7 @@ export VAE_NAME="/root/.cache/huggingface/hub/sd-vae-ft-mse"
 precision="fp16"
 export WANDB_NAME=adamw-bcz4-lr1e-1-worker4-crossattn-only
 # 设置输出目录
-output_dir="/root/shiym_proj/Sara/peft/examples/lora_dreambooth/output/$precision-15-prodigy"
+output_dir="/home/yimingshi/shiym_proj/Sarapeft/examples/lora_dreambooth/output/$precision-15-prodigy"
 # gpu_id=0
 # gpu_id=1
 # gpu_id=3

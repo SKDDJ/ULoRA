@@ -5,7 +5,7 @@ export WANDB_NAME=peft-test
 # export INSTANCE_DIR="dog"
 export MODEL_NAME="runwayml/stable-diffusion-v1-5"
 export INSTANCE_DIR="./dog"
-export OUTPUT_DIR="/root/shiym_proj/Sara/peft/examples/lora_dreambooth/output"
+export OUTPUT_DIR="/home/yimingshi/shiym_proj/Sarapeft/examples/lora_dreambooth/output"
 
 accelerate launch train_dreambooth.py \
   --pretrained_model_name_or_path=$MODEL_NAME  \

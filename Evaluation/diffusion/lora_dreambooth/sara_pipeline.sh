@@ -54,7 +54,7 @@ while true; do
             echo "Running on GPU $gpu_id for ID $id"
 
             export WANDB_NAME=$id
-            output_dir="/root/shiym_proj/Sara/peft/examples/lora_dreambooth/output/${id}"
+            output_dir="/home/yimingshi/shiym_proj/Sarapeft/examples/lora_dreambooth/output/${id}"
 
             CUDA_VISIBLE_DEVICES=$gpu_id accelerate launch train_dreambooth.py \
                 --pretrained_model_name_or_path=$MODEL_NAME  \

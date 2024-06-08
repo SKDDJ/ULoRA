@@ -27,7 +27,7 @@ while true; do
 
             export WANDB_NAME=lr-$learning_rate
             # 设置输出目录
-            output_dir="/root/shiym_proj/Sara/peft/examples/lora_dreambooth/output/lr_${learning_rate//./}"
+            output_dir="/home/yimingshi/shiym_proj/Sarapeft/examples/lora_dreambooth/output/lr_${learning_rate//./}"
 
             # 启动训练任务
             CUDA_VISIBLE_DEVICES=$gpu_id accelerate launch train_dreambooth.py \
@@ -94,7 +94,7 @@ done
 
 #         export WANDB_NAME=lr-$learning_rate
 #         # 设置输出目录
-#         output_dir="/root/shiym_proj/Sara/peft/examples/lora_dreambooth/output/lr_$learning_rate"
+#         output_dir="/home/yimingshi/shiym_proj/Sarapeft/examples/lora_dreambooth/output/lr_$learning_rate"
         
 #         # 启动训练任务
 #         CUDA_VISIBLE_DEVICES=$gpu_id accelerate launch train_dreambooth.py \

@@ -30,7 +30,7 @@ run(){
   #  --lora_target_modules='[q_proj,v_proj]' 
     # --lora_target_modules='[q_proj, o_proj, k_proj, v_proj, gate_proj, up_proj, down_proj]' \
   CUDA_VISIBLE_DEVICES=$gpu python llama_sara.py \
-    --base_model=/root/shiym_proj/Sara/models/llama2_hf \
+    --base_model=Shiym/llama2-7B \
     --cutoff_len=$cutoff_len \
     --mode=$mode \
     --fp16=$fp16 \

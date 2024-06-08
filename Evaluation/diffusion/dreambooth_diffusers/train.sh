@@ -5,7 +5,7 @@ export WANDB_NAME=test
 # export INSTANCE_DIR="dog"
 export MODEL_NAME="runwayml/stable-diffusion-v1-5"
 export INSTANCE_DIR="dog"
-export OUTPUT_DIR="/root/shiym_proj/Sara/diffusers/examples/dreambooth/outputs"
+export OUTPUT_DIR="/home/yimingshi/shiym_proj/Saradiffusers/examples/dreambooth/outputs"
 
 accelerate launch train_dreambooth.py \
   --pretrained_model_name_or_path=$MODEL_NAME  \
