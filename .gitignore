@@ -9,7 +9,7 @@ __pycache__/
 # Distribution / packaging
 utils/SaRA/SaRA.egg-info/
 instruct-eval-melora/data/*
-peft/examples/lora_dreambooth/wandb/*
+wandb/*
 diffusers/*
 
 .Python
@@ -158,12 +158,11 @@ dmypy.json
 *.h5
 *.tar
 *.tar.gz
-utils/down_llama/llama2/
-utils/down_llama/llama3/
-utils/down_llama/transformers-4.40.2/
+Evaluation/llama/down_llama/llama2/
+Evaluation/llama/down_llama/llama3/
+Evaluation/llama/down_llama/transformers-4.40.2/
 llama-lora/
 models/*
-PiSSA/
 
 # Lightning-Hydra-Template
 configs/local/default.yaml
