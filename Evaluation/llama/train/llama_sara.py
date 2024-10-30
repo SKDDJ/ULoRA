@@ -19,8 +19,12 @@ from labml import monit
 
 from functools import partial
 
-sys.path.append('/root/shiym_proj/Sara/')
-from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
+import sys
+sys.path.append('/root/shiym_proj/Sara/utils/loldu')
+from minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
+
+# sys.path.append('/root/shiym_proj/Sara/')
+# from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
 
 
 from transformers import LlamaForCausalLM, LlamaTokenizer, set_seed
@@ -28,6 +32,8 @@ from transformers import LlamaForCausalLM, LlamaTokenizer, set_seed
 # from utils.prompter import Prompter
 from eval.llama_utils.prompter import Prompter
 
+
+torch.backends.cuda.matmul.allow_tf32 = True
 
 def print_vector_parameters(model):
     r"""
@@ -356,7 +362,6 @@ def train(
             num_train_epochs=num_epochs,
             learning_rate=learning_rate,
             bf16=bf16,
-            fp16=fp16,
             logging_steps=10,
             optim="adamw_torch",
             evaluation_strategy="steps" if val_set_size > 0 else "no",

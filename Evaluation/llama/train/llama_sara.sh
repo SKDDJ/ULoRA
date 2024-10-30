@@ -1,7 +1,7 @@
 #!/bin/bash
-export WANDB_MODE=offline
+# export WANDB_MODE=offline
 
-gpu=2
+gpu=5
 
 run(){
   # bs=128
@@ -17,13 +17,13 @@ run(){
   bf16=True
   fp16=False
 
-  lora_alpha="128"
-  target_name='qkvout'
-  lora_dropout=0.05 # default 0.05
+  lora_alpha="1024"
+  target_name='qv'
+  lora_dropout=0. # default 0.05
   lora_bias=none
   cutoff_len=256
-  wandb_project=loldu-llama2-128
-  wandb_run_name=128-bcz4-lr-${learning_rate}-mbs-${micro_bs}-r-${rank}-1-alpha-${lora_alpha}-${target_name}-bs-${bs}-len-${cutoff_len}-epochs-${num_train_epochs}-seed-${seed}
+  wandb_project=loldu-llama2
+  wandb_run_name=test-lr-${learning_rate}-mbs-${micro_bs}-r-${rank}-1-alpha-${lora_alpha}-${target_name}-bs-${bs}-len-${cutoff_len}-epochs-${num_train_epochs}-seed-${seed}
   echo $wandb_run_name
   exp_dir=./llama-lora/${wandb_run_name}
   mkdir -p $exp_dir
@@ -40,7 +40,7 @@ run(){
     --lora_r=$rank \
     --lora_alpha=$lora_alpha \
     --lora_dropout=$lora_dropout \
-    --lora_target_modules='[q_proj, o_proj, k_proj, v_proj]' \
+    --lora_target_modules='[q_proj, v_proj]' \
     --batch_size=$bs \
     --micro_batch_size=$micro_bs \
     --num_epochs=$num_train_epochs \
@@ -51,7 +51,7 @@ run(){
 }
 
 # run SaRA with rank 256
-run 'sara' 128
+run 'sara' 1024
 
 
 

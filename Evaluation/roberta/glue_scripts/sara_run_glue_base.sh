@@ -22,7 +22,11 @@ declare -A lr=(["mnli"]="3e-4" ["sst2"]="4e-4" ["mrpc"]="3e-4" ["cola"]="2e-4" [
 
 declare -A metrics=(["mnli"]="accuracy" ["mrpc"]="accuracy" ["qnli"]="accuracy" ["qqp"]="accuracy" ["rte"]="accuracy" ["sst2"]="accuracy" ["stsb"]="pearson" ["cola"]="matthews_correlation")
 
-# export WANDB_MODE=offline
+export WANDB_MODE=offline
+
+
+# 记录脚本开始时间
+start_time=$(date +%s)
 
 run(){
   task_name=$1
@@ -31,7 +35,7 @@ run(){
   per_device_train_batch_size=${bs[$1]}
   rank=768
   l_num=12
-  seed=123
+  seed=42
   use_sara=True
   train_classifier=True
   lora_alpha="768"
@@ -40,11 +44,13 @@ run(){
   lora_bias=none
   lora_task_type=SEQ_CLS
 
-  export WANDB_PROJECT=5-5-bf16-sara_base_hp_LoRA_glue
-  export WANDB_NAME=base-sara-${task_name}-r-${rank}-target_modules-${target_modules}-seed-${seed}-bs-${per_device_train_batch_size}-lr-${learning_rate}-epochs-${num_train_epochs}
+  init_method=lu # 可选项: 'lu',  'uniform', 'normal', 'constant', 'ones', 'zeros'
 
+  export WANDB_PROJECT=144-LoLDU-${task_name}
+  export WANDB_NAME=${init_method}-target-${target_modules}-144-seed-${seed}-bs-${per_device_train_batch_size}
   HF_ENDPOINT=https://hf-mirror.com accelerate launch --num_processes 6 --main_process_port 26691 ./run_glue_sara.py \
   --model_name_or_path FacebookAI/roberta-base  \
+  --init_method ${init_method} \
   --task_name ${task_name} \
   --do_train --do_eval \
   --max_seq_length ${ml[$1]} \
@@ -70,8 +76,25 @@ run(){
   --overwrite_output_dir
 }
 
-task_base=('cola' 'mrpc' 'mnli' 'qqp' 'qnli' 'rte' 'sst2' 'stsb' )
+task_base=('mrpc' 'cola' 'rte' 'sst2' 'qnli' 'stsb')
+# task_base=('mrpc')
 
 for task in "${task_base[@]}"; do
     run $task
 done  
+
+
+
+# 记录脚本结束时间
+end_time=$(date +%s)
+
+# 计算总耗时
+elapsed_time=$((end_time - start_time))
+
+# 将总耗时转换为小时、分钟和秒
+hours=$((elapsed_time / 3600))
+minutes=$(( (elapsed_time % 3600) / 60 ))
+seconds=$((elapsed_time % 60))
+
+# 打印并输出总耗时
+echo "Total time elapsed: ${hours}h ${minutes}m ${seconds}s"

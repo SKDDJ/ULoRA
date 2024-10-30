@@ -1,0 +1,38 @@
+# pytorch_lightning==2.0.2
+trainer:
+  accelerator: gpu
+  devices: [0,]
+  num_nodes: 1
+  # max_epochs: 10
+  check_val_every_n_epoch: 1
+  val_check_interval: 0.25
+  log_every_n_steps: 1
+  precision: 16-mixed
+  # max_steps: 5000
+  # val_check_interval: 500
+  logger:
+    class_path: pytorch_lightning.loggers.CSVLogger
+    init_args:
+      save_dir: output
+      name: cifar100-sara
+model:
+  model_name: vit-b16-224-in21k
+  training_mode: sara
+  optimizer: adamw
+  lr: 3e-1
+  weight_decay: 4e-5
+  scheduler: cosine
+  warmup_steps: 380
+  lora_r: 8
+  lora_alpha: 8
+data:
+  dataset: cifar100
+  root: data/
+  size: 224
+  batch_size: 128
+  workers: 4
+model_checkpoint:
+  filename: best-step-{step}-{val_acc:.4f}
+  monitor: val_acc
+  mode: max
+  save_last: true

@@ -1,0 +1,11 @@
+accelerate==0.33.0
+bitsandbytes==0.43.1
+datasets==2.21.0
+evaluate==0.4.2
+labml==0.5.2
+peft==0.12.0
+prodigyopt==1.0
+safetensors==0.4.4
+torch==2.3.0
+transformers==4.44.0
+utils==1.0.2

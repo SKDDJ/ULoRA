@@ -1,8 +1,0 @@
-.idea/
-
-/__pycache__
-/data
-/server
-/lightning_logs
-
-run_glue_hf.py

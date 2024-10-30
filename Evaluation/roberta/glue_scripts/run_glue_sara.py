@@ -41,7 +41,34 @@ from labml import monit
 
 from functools import partial
 
-from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name
+import torch
+import transformers
+from transformers import Trainer
+from datasets import load_dataset
+# from peft import LoraConfig, get_peft_model, PeftModel
+import sys
+from typing import List
+
+from safetensors import safe_open
+from safetensors.torch import load_model, save_model
+
+
+import torch.nn as nn
+import bitsandbytes as bnb
+from labml import monit
+
+from functools import partial
+
+import sys
+sys.path.append('/root/shiym_proj/Sara/utils/loldu')
+
+# print(sys.path)
+# exit()
+from minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
+
+# from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name,sara_state_dict
+
+# from utils.SaRA.minsara import SaRAParametrization,add_sara, apply_to_sara, disable_sara, enable_sara, get_sara_params, merge_sara, name_is_sara, remove_sara,get_sara_state_dict,add_sara_by_name
 
 check_min_version("4.29.0")
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
@@ -178,6 +205,9 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
+    init_method: str = field(
+        default="lu", metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
+    )
     lora_path: str = field(
         default=None, metadata={"help": "Path to peft model or model identifier from huggingface.co/models"}
     )
@@ -228,6 +258,24 @@ class ModelArguments:
         default=False,
         metadata={"help": "Will enable to load a pretrained model whose head dimensions are different."},
     )
+
+# @dataclass
+# class TrainingArguments:
+#     """
+#     Arguments pertaining to what data we are going to input our model for training and eval.
+
+#     Using `HfArgumentParser` we can turn this class
+#     into argparse arguments to be able to specify them on
+#     the command line.
+#     """
+#     # output_dir=output_dir,
+#     # evaluation_strategy="epoch",
+#     save_strategy="no",  # 禁用保存策略
+#     logging_steps=1,
+#     # per_device_train_batch_size=batch_size,
+#     # per_device_eval_batch_size=batch_size,
+#     # max_steps=-1,
+#     save_total_limit=0,  # 不保存检查点
 
 def print_vector_parameters(model):
     r"""
@@ -356,7 +404,7 @@ def main():
     
     sara_config = {
     nn.Linear: {
-        "weight": partial(SaRAParametrization.from_linear, rank=model_args.rank, lora_dropout_p=model_args.lora_dropout, lora_alpha=model_args.lora_alpha)
+        "weight": partial(SaRAParametrization.from_linear, rank=model_args.rank, lora_dropout_p=model_args.lora_dropout, lora_alpha=model_args.lora_alpha, init_method=model_args.init_method)
     },
 }
     target_modules=model_args.target_modules
@@ -396,6 +444,35 @@ def main():
     
     optimizer = torch.optim.AdamW(params=parameters, lr=training_args.learning_rate)
     optimizer = accelerator.prepare_optimizer(optimizer)
+
+    prodigy = False
+    if prodigy == True:
+        # del optimizer
+        try:
+            import prodigyopt
+        except ImportError:
+            raise ImportError("To use Prodigy, please install the prodigyopt library: `pip install prodigyopt`")
+
+        optimizer_class = prodigyopt.Prodigy
+
+            # changes the learning rate of text_encoder_parameters_one and text_encoder_parameters_two to be
+            # --learning_rate
+            # params_to_optimize[1]["lr"] = args.learning_rate
+            # params_to_optimize[2]["lr"] = args.learning_rate
+
+        optimizer = optimizer_class(
+            parameters,
+            lr=training_args.learning_rate,
+            betas=(0.9,0.99),
+            beta3=None,
+            weight_decay=1e-4,
+            eps=1e-8,
+            decouple=True,
+            use_bias_correction=True,
+            safeguard_warmup=True,
+        )
+        optimizer = accelerator.prepare_optimizer(optimizer)
+        training_args.lr_scheduler_type = "constant"
 
     # for name, param in model.state_dict().items():
     #     print(name, param.size())
@@ -573,8 +650,50 @@ def main():
         # unwrapped_model = accelerator.unwrap_model(model)
         # save
         # accelerator.save(unwrapped_model.state_dict(), filename)
-
+        wandb.log("train", metrics)
         trainer.log_metrics("train", metrics)
         # trainer.save_metrics("train", metrics)
+        
+    # # Evaluation
+    # if training_args.do_eval:
+    #     logger.info("*** Evaluate ***")
+    #     eval_combined = {}
+    #     # Loop to handle MNLI double evaluation (matched, mis-matched)
+    #     tasks = [data_args.task_name]
+    #     eval_datasets = [eval_dataset]
+    #     if data_args.task_name == "mnli":
+    #         tasks.append("mnli-mm")
+    #         valid_mm_dataset = raw_datasets["validation_mismatched"]
+    #         if data_args.local_test:
+    #             valid_mm_dataset = valid_mm_dataset.select(range(8000, len(valid_mm_dataset)))
+    #         if data_args.max_eval_samples is not None:
+    #             max_eval_samples = min(len(valid_mm_dataset), data_args.max_eval_samples)
+    #             valid_mm_dataset = valid_mm_dataset.select(range(max_eval_samples))
+    #         eval_datasets.append(valid_mm_dataset)
+    #         combined = {}
+
+    #     for eval_dataset, task in zip(eval_datasets, tasks):
+    #         metrics = trainer.evaluate(eval_dataset=eval_dataset)
+
+    #         max_eval_samples = (
+    #             data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+    #         )
+    #         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+
+    #         if task == "mnli-mm":
+    #             metrics = {k + "_mm": v for k, v in metrics.items()}
+    #         if task is not None and "mnli" in task:
+    #             combined.update(metrics)
+
+    #         eval_combined = combined if task is not None and "mnli" in task else metrics
+    #         trainer.log_metrics("eval", metrics)
+    #         wandb.log("eval", metrics)
+    #         # todo test log the vector_z
+    #         for n,p in model.named_parameters():
+    #             # wandb log 'vector_z' in name of model
+    #             if 'vector_z' in n:
+    #                wandb.log(p.detach().cpu().tolist())
+    #                wandb.watch(p)
+    #         trainer.save_metrics("eval", eval_combined)
 if __name__ == "__main__":
     main()

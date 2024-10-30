@@ -261,12 +261,14 @@ class LlamaModel(SeqToSeqModel):
 
     def load(self):
         if self.tokenizer is None:
-            self.tokenizer = LlamaTokenizer.from_pretrained(self.model_path)
+            # self.tokenizer = LlamaTokenizer.from_pretrained(self.model_path)
+            self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_path)
         if self.model is None:
             args = {}
             if self.load_8bit:
                 args.update(device_map="auto", load_in_8bit=True)
-            self.model = LlamaForCausalLM.from_pretrained(self.model_path, **args)
+            # self.model = LlamaForCausalLM.from_pretrained(self.model_path, **args)
+            self.model = transformers.AutoModelForCausalLM.from_pretrained(self.model_path, **args)
             if self.lora_path:
                 # Read the .safetensors file
                 state_dict_to_save = {}
@@ -341,6 +343,12 @@ class LlamaModel(SeqToSeqModel):
                 truncation=True,
                 max_length=self.max_input_length,
             ).to(self.device)
+
+        # outputs = self.model.generate(
+        #     input_ids=input_ids,
+        #     attention_mask=attention_mask,
+        #     **kwargs
+        # )
 
         outputs = self.model.generate(
             **inputs,

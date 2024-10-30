@@ -21,6 +21,8 @@ def transpose(weight, fan_in_fan_out):
 
 def ldu_decomposition(A):
     # Perform LU decomposition
+    #todo: test no permutation matrix
+    # P, L, U = torch.linalg.lu(A,pivot=False)
     P, L, U = torch.linalg.lu(A)
     # Extract the diagonal elements of U to form D
     D = torch.diagonal(U)
@@ -65,13 +67,13 @@ class SaRAParametrization(pl.LightningModule):
         if not self._updated:  # 只有在未更新权重的情况下才执行
             # initialization of A and B
             # note: because we may use weight tying, so we have to define the lora_X as nn.Parameter not the nn.Linear
+            # , device=self.lora_A.device
+            # , device=self.lora_A.device
             self.lora_A = nn.Parameter(torch.zeros(self.swap((self.rank, self.fan_in)))) # U
             self.lora_B = nn.Parameter(torch.zeros(self.swap((self.fan_out, self.rank)))) # L
             self.P = nn.Parameter(torch.zeros(self.swap((self.fan_out, self.fan_out)))) # P
-            self.vector_z = nn.Parameter(torch.ones(self.rank))
-            #TODO: TEST init a nn.Parameter name scaling_factor that is a scalar
-            self.scaling_factor = nn.Parameter(torch.tensor(self.scaling))
-            
+            self.vector_z = nn.Parameter(torch.ones(self.rank, device=self.layer_weights.device)) 
+            self.scaling_factor = nn.Parameter(torch.tensor(self.scaling, device=self.layer_weights.device))
             self.get_residual_matrix()
             self._forward_pre_hook_handle.remove()  # 移除钩子
             self._updated = True  # 更新标记，防止再次执
@@ -83,7 +85,6 @@ class SaRAParametrization(pl.LightningModule):
         
         weight = self.layer_weights 
         dtype = weight.dtype
-        # print("weight dtype", dtype)
         
         if dtype not in [torch.float32, torch.float16, torch.bfloat16]:
             raise TypeError(
@@ -91,21 +92,11 @@ class SaRAParametrization(pl.LightningModule):
                 "Subsequently, re-quantize the residual model to help minimize quantization errors."
             )
         weight = weight.to(torch.float32)
-        # print("new weight dtype", weight.dtype)
 
         
         # todo check if it is need to del teh U V S
         if init_sara_weights == "ldu":
             P, L, D, U = ldu_decomposition(weight.data)
-            # print device for 
-            # print(f"P device is {P.device}")
-            # print(f"L device is {L.device}")
-            # print(f"D device is {D.device}")
-            # print(f"U device is {U.device}")
-            # print(f"weight device is {weight.device}")
-            
-            # Extract the top r components
-
             Lr = L[:, :r]
             Dr = D[:r]
             Ur = U[: r]
@@ -116,61 +107,50 @@ class SaRAParametrization(pl.LightningModule):
         self.lora_A.data = lora_A
         self.lora_B.data = lora_B
         self.P.data = P
-        # only train vector_z
+        
         self.lora_A.requires_grad = False
         self.lora_B.requires_grad = False
         self.P.requires_grad = False
         
         init_method = self.init_method  # 可选项: 'lu', 'kaiming_normal', 'kaiming_uniform', 'uniform', 'normal', 'constant', 'ones', 'zeros'
         if init_method == 'lu':
-            # print(vector_z)
-            # print(vector_z.shape)
-            # print(vector_z.item())
             self.vector_z.data = vector_z
-        # elif init_method == 'kaiming_normal':
-        #     nn.init.kaiming_normal_(self.vector_z, mode='fan_in', nonlinearity='relu')
-        # elif init_method == 'kaiming_uniform':
-        #     nn.init.kaiming_uniform_(self.vector_z, a=math.sqrt(5))
-        # elif init_method == 'uniform':
-        #     mean_value = self.vector_z.mean().item()
-        #     print(f"self.vector_z mean is {mean_value}")
-        #     nn.init.uniform_(self.vector_z, a=-mean_value/2, b=mean_value/2)
-        #     # nn.init.uniform_(self.vector_z, a=-1, b=1)
-        # elif init_method == 'normal':
-        #     mean_value = self.vector_z.mean().item()
-        #     std_value = self.vector_z.std().item()
-        #     print(f"self.vector_z mean is {mean_value}")
-        #     print(f"self.vector_z std is {std_value}")
-        #     nn.init.normal_(self.vector_z, mean=mean_value, std=std_value)
-        #     # nn.init.normal_(self.vector_z, mean=0.0, std=1.0)
-        # elif init_method == 'constant':
-        #     mean_value = self.vector_z.mean().item()
-        #     print(f"self.vector_z mean is {mean_value}")
-        #     nn.init.constant_(self.vector_z, mean_value)
-        #     # nn.init.constant_(self.vector_z, 3.14)
-        # elif init_method == 'ones':
-        #     nn.init.ones_(self.vector_z)
-        # elif init_method == 'zeros':
-        #     nn.init.zeros_(self.vector_z)
-        # else:
-        #     raise ValueError(f"Unknown initialization method: {init_method}")
+        elif init_method == 'suniform':
+            nn.init.uniform_(self.vector_z, a=-1, b=1)
+        elif init_method == 'uniform':
+            mean_value = self.vector_z.mean().item()
+            print(f"self.vector_z mean is {mean_value}")
+            nn.init.uniform_(self.vector_z, a=-mean_value/2, b=mean_value/2)
+        elif init_method == 'normal':
+            mean_value = self.vector_z.mean().item()
+            std_value = self.vector_z.std().item()
+            print(f"self.vector_z mean is {mean_value}")
+            print(f"self.vector_z std is {std_value}")
+            nn.init.normal_(self.vector_z, mean=mean_value, std=std_value)
+            # nn.init.normal_(self.vector_z, mean=0.0, std=1.0)
+        elif init_method == 'constant':
+            mean_value = self.vector_z.mean().item()
+            print(f"self.vector_z mean is {mean_value}")
+            nn.init.constant_(self.vector_z, mean_value)
+            # nn.init.constant_(self.vector_z, 3.14)
+        elif init_method == 'ones':
+            nn.init.ones_(self.vector_z)
+        elif init_method == 'zeros':
+            nn.init.zeros_(self.vector_z)
+        else:
+            raise ValueError(f"Unknown initialization method: {init_method}")
         
         
         # drop out which won't be used 
         self.lora_dropout = nn.Dropout(p=self.lora_dropout_p) if self.lora_dropout_p > 0 else lambda x: x
         self.dropout_fn = self._dropout if self.lora_dropout_p > 0 else lambda x: x
         self.register_buffer("lora_dropout_mask", torch.ones(self.swap((1, self.fan_in)), dtype=self.lora_A.dtype))
-        # keep the resmat even zeros because finally we need merge the resmat with the LDU but we can don't use the resmat in the forward
         
-        resmat = self.layer_weights - self.scaling * P @ lora_B @ torch.diag(vector_z) @lora_A 
-        
+        resmat = self.layer_weights - self.scaling_factor * P @ lora_B @ torch.diag(vector_z) @lora_A         
         resmat = resmat.to(dtype)
-        # print(f"resmat shape is {resmat.shape}")
-        # print(f"resmat is {resmat}")
-        # print(torch.dist(resmat, torch.zeros_like(resmat)))
         
         self.layer_weights.data = resmat
-        del resmat, lora_A, lora_B, vector_z, weight
+        del  P,resmat, lora_A, lora_B, vector_z, weight
         
     def _dropout(self, A):
         # to mimic the original implementation: A @ dropout(x), we do (A * dropout(ones)) @ x
@@ -178,16 +158,9 @@ class SaRAParametrization(pl.LightningModule):
   
     def sara_forward(self, X):
         torch_X_dtype = X.dtype #16
-        # print("I am forwarding"*20)
-        # print(f"self.P device is {self.P.device}")
-        # print(f"L(loraB) device is {self.lora_B.device}")
-        # print(f"D device is {self.vector_z.device}")
-        # print(f"U(loraA) device is {self.lora_A.device}")
-
         diag_z = torch.diag(self.vector_z) # 32
-        # print("self.scaling_factor init", self.scaling_factor)
-        result = self.scaling_factor * self.P @ self.lora_B @ diag_z @ self.lora_A
         
+        result = self.scaling_factor * self.P @ self.lora_B @ diag_z @ self.lora_A        
         result = result.to(torch_X_dtype) # 32 -> 16
         del diag_z
         # omit the original weights only return the LDU matrix
